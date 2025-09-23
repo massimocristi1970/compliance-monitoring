@@ -1,0 +1,18 @@
+{
+  "checkRef": 1,
+  "businessArea": "Credit Agreements & Disclosures ^(CCA / CONC^)",
+  "action": "Adequate Explanations",
+  "frequency": "Annually",
+  "number": "As needed",
+  "responsibility": "Massimo Cristi",
+  "lastReviewMonth": "Sep",
+  "records": "Document",
+  "nextReviewMonth": "Sep",
+  "nextReviewYear": 2026,
+  "status": "completed",
+  "completedDate": "2024-09-15",
+  "comments": "Review completed successfully. All explanations meet regulatory standards.",
+  "files": ["adequate_explanations_2024.pdf"],
+  "uploadDate": "2024-09-15T10:30:00Z",
+  "uploadedBy": "Massimo Cristi"
+}

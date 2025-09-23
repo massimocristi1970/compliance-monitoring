@@ -1,0 +1,18 @@
+{
+  "checkRef": 4,
+  "businessArea": "Credit Agreements & Disclosures ^(CCA / CONC^)",
+  "action": "Sample test of agreements ^(disclosures, repayment frequency^)",
+  "frequency": "Quarterly",
+  "number": 20,
+  "responsibility": "Massimo Cristi",
+  "lastReviewMonth": "Jun",
+  "records": "Document",
+  "nextReviewMonth": "Sep",
+  "nextReviewYear": 2025,
+  "status": "overdue",
+  "dueDate": "2025-09-30",
+  "comments": "Quarterly review in progress. 15 out of 20 samples completed.",
+  "files": ["sample_test_q3_2025.xlsx"],
+  "uploadDate": "2024-09-20T14:15:00Z",
+  "uploadedBy": "Massimo Cristi"
+}
