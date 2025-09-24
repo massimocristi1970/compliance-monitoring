@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Upload, FileText, CheckCircle, AlertCircle, Clock, Users, Filter, Download, MessageSquare, Eye, RefreshCw, Settings, Shield } from 'lucide-react';
 import AdminPanel from './AdminPanel';
+import { GITHUB_CONFIG } from './config.js';
 
 const ComplianceDashboard = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -167,7 +168,7 @@ const handleFileUpload = async (checkRef, files) => {
   setUploadingFile(true);
   
   try {
-    const GITHUB_TOKEN = process.env.REACT_APP_GITHUB_TOKEN;
+    const GITHUB_TOKEN = GITHUB_CONFIG.TOKEN;
     const REPO_OWNER = 'massimocristi1970';
     const REPO_NAME = 'compliance-monitoring';
     

@@ -34,3 +34,5 @@ logs/
 __pycache__/ 
 *.pyc 
 *.pyo 
+
+src/config.js
