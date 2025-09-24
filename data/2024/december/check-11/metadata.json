@@ -1,0 +1,21 @@
+{
+  "checkRef": 11,
+  "businessArea": "Collections & Arrears (CONC / Consumer Duty)",
+  "action": "Arrears procedures review",
+  "frequency": "Quarterly",
+  "number": "As needed",
+  "responsibility": "Massimo Cristi",
+  "lastReviewMonth": "Sep",
+  "records": "Document",
+  "nextReviewMonth": "Dec",
+  "nextReviewYear": 2025,
+  "status": "completed",
+  "completedDate": "2024-09-10",
+  "dueDate": "2024-12-31",
+  "comments": "Procedures updated to reflect latest CONC guidance.",
+  "files": [
+    "arrears_procedures_2024.pdf"
+  ],
+  "uploadDate": "2024-09-10T15:00:00Z",
+  "uploadedBy": "Massimo Cristi"
+}

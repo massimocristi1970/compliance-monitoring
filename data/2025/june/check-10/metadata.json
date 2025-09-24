@@ -1,0 +1,21 @@
+{
+  "checkRef": 10,
+  "businessArea": "SMCR & Governance",
+  "action": "Companies House filing (confirmation statement/accounts)",
+  "frequency": "Annually",
+  "number": "As needed",
+  "responsibility": "Massimo Cristi",
+  "lastReviewMonth": "Jun",
+  "records": "Document",
+  "nextReviewMonth": "Jun",
+  "nextReviewYear": 2026,
+  "status": "completed",
+  "completedDate": "2024-06-15",
+  "dueDate": "2025-06-30",
+  "comments": "Annual filing completed on time.",
+  "files": [
+    "companies_house_filing_2024.pdf"
+  ],
+  "uploadDate": "2024-06-15T10:00:00Z",
+  "uploadedBy": "Massimo Cristi"
+}
