@@ -162,33 +162,114 @@ const ComplianceDashboard = () => {
     }
   };
 
-  const handleFileUpload = async (checkRef, files) => {
-    setUploadingFile(true);
+  // Replace your current handleFileUpload function with this:
+const handleFileUpload = async (checkRef, files) => {
+  setUploadingFile(true);
+  
+  try {
+    const GITHUB_TOKEN = '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'
+    const REPO_OWNER = 'massimocristi1970';
+    const REPO_NAME = 'compliance-monitoring';
     
-    try {
-      // Simulate file upload process
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    const uploadedFiles = [];
+    
+    for (const file of Array.from(files)) {
+      // Convert file to base64
+      const base64Content = await fileToBase64(file);
       
-      const fileNames = Array.from(files).map(file => file.name);
-      const updates = {
-        files: [...(complianceData.find(item => item.checkRef === checkRef)?.files || []), ...fileNames],
-        status: 'completed',
-        completedDate: new Date().toISOString().split('T')[0],
-        lastUpdated: new Date().toISOString()
-      };
+      // Create the file path
+      const filePath = `data/${selectedYear}/${months[selectedMonth-1].toLowerCase()}/check-${checkRef}/${file.name}`;
       
-      await updateCheckStatus(checkRef, updates);
+      // GitHub API request
+      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github.v3+json'
+        },
+        body: JSON.stringify({
+          message: `Upload file for compliance check #${checkRef}`,
+          content: base64Content,
+          branch: 'main'
+        })
+      });
       
-      setUploadingFile(false);
-      setShowFileUpload(false);
-      
-      alert(`Files uploaded successfully to GitHub repository:\n${fileNames.join('\n')}\n\nPath: data/${selectedYear}/${months[selectedMonth-1].toLowerCase()}/check-${checkRef}/`);
-      
-    } catch (error) {
-      setUploadingFile(false);
-      alert('Upload failed: ' + error.message);
+      if (response.ok) {
+        const result = await response.json();
+        uploadedFiles.push({
+          name: file.name,
+          url: result.content.html_url,
+          downloadUrl: result.content.download_url
+        });
+        console.log(`✅ Uploaded: ${file.name}`);
+      } else {
+        const error = await response.json();
+        throw new Error(`GitHub API Error: ${error.message}`);
+      }
     }
-  };
+    
+    // Update the compliance check with real file info
+    const updates = {
+      files: [
+        ...(complianceData.find(item => item.checkRef === checkRef)?.files || []), 
+        ...uploadedFiles
+      ],
+      status: 'completed',
+      completedDate: new Date().toISOString().split('T')[0],
+      lastUpdated: new Date().toISOString()
+    };
+    
+    await updateCheckStatus(checkRef, updates);
+    
+    setUploadingFile(false);
+    setShowFileUpload(false);
+    
+    alert(`✅ Files uploaded successfully to GitHub:\n${uploadedFiles.map(f => f.name).join('\n')}\n\n🔗 View files in repository at:\ndata/${selectedYear}/${months[selectedMonth-1].toLowerCase()}/check-${checkRef}/`);
+    
+  } catch (error) {
+    setUploadingFile(false);
+    console.error('Upload failed:', error);
+    alert(`❌ Upload failed: ${error.message}`);
+  }
+};
+
+// Helper function to convert file to base64
+const fileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      // Remove the data:mime/type;base64, prefix
+      const base64 = reader.result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = error => reject(error);
+  });
+};
+
+// Enhanced file display component
+const FileList = ({ files, checkRef }) => {
+  return (
+    <div className="mt-2 space-y-1">
+      {files?.map((file, index) => (
+        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+          <span>{typeof file === 'string' ? file : file.name}</span>
+          {file.url && (
+            <a 
+              href={file.url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800"
+            >
+              View on GitHub →
+            </a>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
 
   const simulateApiCall = async (url, options) => {
     // Simulate network delay
