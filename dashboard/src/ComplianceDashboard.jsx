@@ -167,7 +167,7 @@ const handleFileUpload = async (checkRef, files) => {
   setUploadingFile(true);
   
   try {
-    const GITHUB_TOKEN = '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'
+    const GITHUB_TOKEN = process.env.REACT_APP_GITHUB_TOKEN;
     const REPO_OWNER = 'massimocristi1970';
     const REPO_NAME = 'compliance-monitoring';
     
