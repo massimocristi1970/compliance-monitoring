@@ -18,6 +18,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   const [showAddBusinessArea, setShowAddBusinessArea] = useState(false);
   const [showAddCheck, setShowAddCheck] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   // Form data
   const [newAssignee, setNewAssignee] = useState({ name: '', email: '', role: '', githubUsername: '' });
@@ -83,6 +84,19 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
           ...check,
           priority: check.priority || 'Medium'
         })));
+      }
+
+      // Try to load admin configuration
+      try {
+        const adminResponse = await fetch('/compliance-monitoring/dashboard/data/admin-config.json');
+        if (adminResponse.ok) {
+          const adminData = await adminResponse.json();
+          if (adminData.assignees) setAssignees(adminData.assignees);
+          if (adminData.businessAreas) setBusinessAreas(adminData.businessAreas);
+          if (adminData.frequencies) setFrequencies(adminData.frequencies);
+        }
+      } catch (e) {
+        console.log('Admin config not found, using defaults');
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -163,28 +177,166 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
     }
   };
 
-  const handleSaveChanges = async () => {
+  // Helper function to save files to GitHub
+  const saveFileToGitHub = async (filePath, content, commitMessage) => {
+    const GITHUB_TOKEN = GITHUB_CONFIG.TOKEN;
+    const REPO_OWNER = 'massimocristi1970';
+    const REPO_NAME = 'compliance-monitoring';
+    
+    if (!GITHUB_TOKEN || GITHUB_TOKEN === 'local-development-token') {
+      throw new Error('GitHub token not available. Please check your configuration.');
+    }
+
     try {
-      // Simulate saving data
-      const dataToSave = {
+      // First, try to get the existing file to get its SHA (for updates)
+      let sha = null;
+      try {
+        const existingFileResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`, {
+          headers: {
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+        
+        if (existingFileResponse.ok) {
+          const existingFile = await existingFileResponse.json();
+          sha = existingFile.sha;
+        }
+      } catch (e) {
+        console.log(`File ${filePath} doesn't exist yet, will create new file`);
+      }
+
+      // Convert content to base64
+      const base64Content = btoa(unescape(encodeURIComponent(content)));
+
+      // Create or update the file
+      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github.v3+json'
+        },
+        body: JSON.stringify({
+          message: commitMessage,
+          content: base64Content,
+          branch: 'main',
+          ...(sha && { sha })
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`GitHub API Error: ${error.message || 'Unknown error'}`);
+      }
+
+      const result = await response.json();
+      console.log(`Successfully saved ${filePath} to GitHub`);
+      return result;
+
+    } catch (error) {
+      console.error(`Failed to save ${filePath}:`, error);
+      throw error;
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    if (saving) return;
+    
+    setSaving(true);
+    
+    try {
+      // Prepare the compliance data for saving
+      const complianceDataToSave = complianceChecks.map(check => ({
+        checkRef: check.checkRef,
+        action: check.action,
+        businessArea: check.businessArea,
+        frequency: check.frequency,
+        responsibility: check.responsibility,
+        records: check.records,
+        number: check.number,
+        status: check.status,
+        priority: check.priority,
+        dueDate: check.dueDate,
+        year: check.year,
+        month: check.month,
+        monthNumber: check.monthNumber,
+        uploadDate: check.uploadDate,
+        uploadedBy: check.uploadedBy,
+        files: check.files || [],
+        comments: check.comments || '',
+        completedDate: check.completedDate
+      }));
+
+      // Save compliance-data.json
+      console.log('Saving compliance data to GitHub...');
+      await saveFileToGitHub(
+        'dashboard/data/compliance-data.json',
+        JSON.stringify(complianceDataToSave, null, 2),
+        'Update compliance data from Admin Panel'
+      );
+
+      // Create summary data
+      const stats = {
+        total: complianceChecks.length,
+        completed: complianceChecks.filter(item => item.status === 'completed').length,
+        pending: complianceChecks.filter(item => item.status === 'pending').length,
+        overdue: complianceChecks.filter(item => item.status === 'overdue').length,
+        dueSoon: complianceChecks.filter(item => item.status === 'due_soon').length,
+        monitoring: complianceChecks.filter(item => item.status === 'monitoring').length
+      };
+
+      const summaryData = {
+        lastUpdated: new Date().toISOString(),
+        totalChecks: stats.total,
+        completionRate: stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0,
+        statistics: stats,
+        assignees: assignees.length,
+        businessAreas: businessAreas.length,
+        frequencies: frequencies.length
+      };
+
+      // Save summary.json
+      console.log('Saving summary data to GitHub...');
+      await saveFileToGitHub(
+        'dashboard/data/summary.json',
+        JSON.stringify(summaryData, null, 2),
+        'Update summary data from Admin Panel'
+      );
+
+      // Save admin configuration
+      const adminConfig = {
         assignees,
         businessAreas,
-        complianceChecks,
         frequencies,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
+        updatedBy: 'Admin Panel'
       };
-      
-      console.log('Saving admin data:', dataToSave);
-      
-      // In a real implementation, this would save to your backend/GitHub
-      alert('Changes saved successfully! In production, this would update your GitHub repository.');
+
+      console.log('Saving admin configuration to GitHub...');
+      await saveFileToGitHub(
+        'dashboard/data/admin-config.json',
+        JSON.stringify(adminConfig, null, 2),
+        'Update admin configuration from Admin Panel'
+      );
+
+      setSaving(false);
+      alert('Changes saved successfully to GitHub repository!\n\nData files updated:\n• compliance-data.json\n• summary.json\n• admin-config.json\n\nOther users will see these changes immediately.');
       
       if (onDataUpdate) {
-        onDataUpdate(dataToSave);
+        onDataUpdate({
+          assignees,
+          businessAreas,
+          complianceChecks,
+          frequencies,
+          lastUpdated: new Date().toISOString()
+        });
       }
       
     } catch (error) {
-      alert('Error saving changes: ' + error.message);
+      setSaving(false);
+      console.error('Error saving to GitHub:', error);
+      alert('Error saving changes to GitHub: ' + error.message);
     }
   };
 
@@ -342,10 +494,11 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSaveChanges}
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                disabled={saving}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
-                Save All Changes
+                {saving ? 'Saving...' : 'Save All Changes'}
               </button>
               <button
                 onClick={onClose}
