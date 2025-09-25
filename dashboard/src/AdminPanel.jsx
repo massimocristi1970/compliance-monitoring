@@ -107,41 +107,13 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         throw new Error('Invalid OAuth state');
       }
 
-      // Exchange code for access token
-      // Note: In production, this should be done through your backend server
-      // For demo purposes, we'll simulate the token exchange
-      const tokenResponse = await fetch('/api/oauth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          client_id: GITHUB_OAUTH.CLIENT_ID,
-          client_secret: process.env.GITHUB_CLIENT_SECRET, // Server-side only!
-          code: code
-        })
-      });
-
-      if (!tokenResponse.ok) {
-        throw new Error('Token exchange failed');
-      }
-
-      const tokenData = await tokenResponse.json();
-      const token = tokenData.access_token;
-
-      // Get user information
-      const userResponse = await fetch('https://api.github.com/user', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
-      });
-
-      if (!userResponse.ok) {
-        throw new Error('Failed to get user information');
-      }
-
-      const userData = await userResponse.json();
+      // Temporary: simulate successful authentication for testing
+	  const simulatedToken = 'temp_token_for_testing';
+	  const userData = {
+	  login: 'test_user',
+	  name: 'Test User',
+	  avatar_url: 'https://github.com/identicons/test.png'
+	  };
 
       // Store authentication data
       setAccessToken(token);
