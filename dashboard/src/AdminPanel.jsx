@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Save, X, Users, FileText, Settings, Calendar, Building2, User, Clock, CheckCircle } from 'lucide-react';
+import { GITHUB_CONFIG } from './config.js';
 
 const AdminPanel = ({ onClose, onDataUpdate }) => {
   const [activeTab, setActiveTab] = useState('assignees');
@@ -162,30 +163,175 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
     }
   };
 
-  const handleSaveChanges = async () => {
-    try {
-      // Simulate saving data
-      const dataToSave = {
+  // Replace the handleSaveChanges function in your AdminPanel.jsx with this:
+
+const handleSaveChanges = async () => {
+  try {
+    const GITHUB_TOKEN = GITHUB_CONFIG.TOKEN;
+    const REPO_OWNER = 'massimocristi1970';
+    const REPO_NAME = 'compliance-monitoring';
+    
+    if (!GITHUB_TOKEN || GITHUB_TOKEN === 'local-development-token') {
+      alert('GitHub token not available. Cannot save to repository.');
+      return;
+    }
+
+    // Prepare the compliance data for saving
+    const complianceDataToSave = complianceChecks.map(check => ({
+      checkRef: check.checkRef,
+      action: check.action,
+      businessArea: check.businessArea,
+      frequency: check.frequency,
+      responsibility: check.responsibility,
+      records: check.records,
+      number: check.number,
+      status: check.status,
+      priority: check.priority,
+      dueDate: check.dueDate,
+      year: check.year,
+      month: check.month,
+      monthNumber: check.monthNumber,
+      uploadDate: check.uploadDate,
+      uploadedBy: check.uploadedBy,
+      files: check.files || [],
+      comments: check.comments || '',
+      completedDate: check.completedDate
+    }));
+
+    // Save compliance-data.json
+    console.log('Saving compliance data to GitHub...');
+    await saveFileToGitHub(
+      'dashboard/data/compliance-data.json',
+      JSON.stringify(complianceDataToSave, null, 2),
+      'Update compliance data from Admin Panel',
+      GITHUB_TOKEN,
+      REPO_OWNER,
+      REPO_NAME
+    );
+
+    // Create summary data
+    const stats = {
+      total: complianceChecks.length,
+      completed: complianceChecks.filter(item => item.status === 'completed').length,
+      pending: complianceChecks.filter(item => item.status === 'pending').length,
+      overdue: complianceChecks.filter(item => item.status === 'overdue').length,
+      dueSoon: complianceChecks.filter(item => item.status === 'due_soon').length,
+      monitoring: complianceChecks.filter(item => item.status === 'monitoring').length
+    };
+
+    const summaryData = {
+      lastUpdated: new Date().toISOString(),
+      totalChecks: stats.total,
+      completionRate: stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0,
+      statistics: stats,
+      assignees: assignees.length,
+      businessAreas: businessAreas.length,
+      frequencies: frequencies.length
+    };
+
+    // Save summary.json
+    console.log('Saving summary data to GitHub...');
+    await saveFileToGitHub(
+      'dashboard/data/summary.json',
+      JSON.stringify(summaryData, null, 2),
+      'Update summary data from Admin Panel',
+      GITHUB_TOKEN,
+      REPO_OWNER,
+      REPO_NAME
+    );
+
+    // Save admin configuration (assignees, business areas, frequencies)
+    const adminConfig = {
+      assignees,
+      businessAreas,
+      frequencies,
+      lastUpdated: new Date().toISOString(),
+      updatedBy: 'Admin Panel'
+    };
+
+    console.log('Saving admin configuration to GitHub...');
+    await saveFileToGitHub(
+      'dashboard/data/admin-config.json',
+      JSON.stringify(adminConfig, null, 2),
+      'Update admin configuration from Admin Panel',
+      GITHUB_TOKEN,
+      REPO_OWNER,
+      REPO_NAME
+    );
+
+    alert('✅ All changes saved successfully to GitHub repository!\n\nData files updated:\n• compliance-data.json\n• summary.json\n• admin-config.json\n\nOther users will see these changes immediately.');
+    
+    if (onDataUpdate) {
+      onDataUpdate({
         assignees,
         businessAreas,
         complianceChecks,
         frequencies,
         lastUpdated: new Date().toISOString()
-      };
-      
-      console.log('Saving admin data:', dataToSave);
-      
-      // In a real implementation, this would save to your backend/GitHub
-      alert('Changes saved successfully! In production, this would update your GitHub repository.');
-      
-      if (onDataUpdate) {
-        onDataUpdate(dataToSave);
-      }
-      
-    } catch (error) {
-      alert('Error saving changes: ' + error.message);
+      });
     }
-  };
+    
+  } catch (error) {
+    console.error('Error saving to GitHub:', error);
+    alert('❌ Error saving changes to GitHub: ' + error.message);
+  }
+};
+
+// Helper function to save files to GitHub
+const saveFileToGitHub = async (filePath, content, commitMessage, token, owner, repo) => {
+  try {
+    // First, try to get the existing file to get its SHA (for updates)
+    let sha = null;
+    try {
+      const existingFileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      
+      if (existingFileResponse.ok) {
+        const existingFile = await existingFileResponse.json();
+        sha = existingFile.sha;
+      }
+    } catch (e) {
+      // File doesn't exist yet, that's okay
+      console.log(`File ${filePath} doesn't exist yet, will create new file`);
+    }
+
+    // Convert content to base64
+    const base64Content = btoa(unescape(encodeURIComponent(content)));
+
+    // Create or update the file
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github.v3+json'
+      },
+      body: JSON.stringify({
+        message: commitMessage,
+        content: base64Content,
+        branch: 'main',
+        ...(sha && { sha }) // Include SHA if updating existing file
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`GitHub API Error: ${error.message}`);
+    }
+
+    const result = await response.json();
+    console.log(`✅ Successfully saved ${filePath} to GitHub`);
+    return result;
+
+  } catch (error) {
+    console.error(`❌ Failed to save ${filePath}:`, error);
+    throw error;
+  }
+};
 
   const generateBulkChecks = () => {
     if (assignees.length === 0 || businessAreas.length === 0) {
