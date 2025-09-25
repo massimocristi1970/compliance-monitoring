@@ -29,7 +29,7 @@ const ComplianceDashboard = () => {
 
   // GitHub OAuth configuration
   const GITHUB_OAUTH = {
-    CLIENT_ID: 'your-github-client-id', // You'll need to create this
+    CLIENT_ID: 'Ov23liBeQ6mRrc1gRYIi', // You'll need to create this
     REDIRECT_URI: `${window.location.origin}/compliance-monitoring/oauth/callback`,
     SCOPE: 'repo',
     STATE: Math.random().toString(36).substring(2, 15)
