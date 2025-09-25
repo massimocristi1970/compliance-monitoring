@@ -100,38 +100,38 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   };
 
   const handleOAuthCallback = async (code, state) => {
-    try {
-      // Verify state
-      const storedState = sessionStorage.getItem('oauth_state');
-      if (state !== storedState) {
-        throw new Error('Invalid OAuth state');
-      }
+	try {
+	   // Verify state
+       const storedState = sessionStorage.getItem('oauth_state');
+       if (state !== storedState) {
+         throw new Error('Invalid OAuth state');
+       }
 
-      // Temporary: simulate successful authentication for testing
-	  const simulatedToken = 'temp_token_for_testing';
-	  const userData = {
-	  login: 'test_user',
-	  name: 'Test User',
-	  avatar_url: 'https://github.com/identicons/test.png'
-	  };
+       // Temporary: simulate successful authentication for testing
+       const simulatedToken = 'temp_token_for_testing';
+       const userData = {
+         login: 'test_user',
+         name: 'Test User',
+         avatar_url: 'https://github.com/identicons/test.png'
+       };
 
-      // Store authentication data
-      setAccessToken(token);
-      setUser(userData);
-      setIsAuthenticated(true);
+       // Store authentication data
+       setAccessToken(simulatedToken);
+       setUser(userData);
+       setIsAuthenticated(true);
 
-      sessionStorage.setItem('github_access_token', token);
-      sessionStorage.setItem('github_user', JSON.stringify(userData));
+       sessionStorage.setItem('github_access_token', simulatedToken);
+       sessionStorage.setItem('github_user', JSON.stringify(userData));
 
-      // Clean up URL and load data
-      window.history.replaceState({}, document.title, window.location.pathname);
-      loadData();
+       // Clean up URL and load data
+       window.history.replaceState({}, document.title, window.location.pathname);
+       loadData();
 
-    } catch (error) {
-      console.error('OAuth callback error:', error);
-      alert('Authentication failed: ' + error.message);
-    }
-  };
+     } catch (error) {
+       console.error('OAuth callback error:', error);
+       alert('Authentication failed: ' + error.message);
+     }
+   };
 
   const logout = () => {
     setAccessToken(null);
