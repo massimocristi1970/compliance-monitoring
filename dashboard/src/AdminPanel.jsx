@@ -1245,5 +1245,5 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   );
 };
 
-export default AdminPanel; gap-3">
+export default AdminPanel;
               
