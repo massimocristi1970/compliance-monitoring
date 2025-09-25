@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Save, X, Users, FileText, Settings, Calendar, Building2, User, Clock, CheckCircle } from 'lucide-react';
-import { GITHUB_CONFIG } from './config.js';
+import { Plus, Edit, Trash2, Save, X, Users, FileText, Settings, Calendar, Building2, User, Clock, CheckCircle, LogIn, LogOut } from 'lucide-react';
 
 const AdminPanel = ({ onClose, onDataUpdate }) => {
   const [activeTab, setActiveTab] = useState('assignees');
@@ -8,6 +7,11 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   const [businessAreas, setBusinessAreas] = useState([]);
   const [complianceChecks, setComplianceChecks] = useState([]);
   const [frequencies, setFrequencies] = useState(['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Annually', 'Event-driven']);
+  
+  // OAuth state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
+  const [accessToken, setAccessToken] = useState(null);
   
   // Date selection for operations - this now controls ALL operations
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -46,8 +50,34 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
     'july', 'august', 'september', 'october', 'november', 'december'
   ];
 
+  // GitHub OAuth configuration
+  const GITHUB_OAUTH = {
+    CLIENT_ID: 'Ov23liBeQ6mRrc1gRYIi', // You'll need to create this
+    REDIRECT_URI: `${window.location.origin}/compliance-monitoring/oauth/callback`,
+    SCOPE: 'repo',
+    STATE: Math.random().toString(36).substring(2, 15)
+  };
+
   useEffect(() => {
-    loadData();
+    // Check if user is coming back from OAuth redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    
+    if (code) {
+      handleOAuthCallback(code, state);
+    } else {
+      // Check for existing token in session storage
+      const token = sessionStorage.getItem('github_access_token');
+      const userData = sessionStorage.getItem('github_user');
+      
+      if (token && userData) {
+        setAccessToken(token);
+        setUser(JSON.parse(userData));
+        setIsAuthenticated(true);
+        loadData();
+      }
+    }
   }, []);
 
   // Update newCheck month/year when selectedMonth/selectedYear changes
@@ -59,44 +89,259 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
     }));
   }, [selectedMonth, selectedYear]);
 
+  const initiateOAuth = () => {
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_OAUTH.CLIENT_ID}&redirect_uri=${GITHUB_OAUTH.REDIRECT_URI}&scope=${GITHUB_OAUTH.SCOPE}&state=${GITHUB_OAUTH.STATE}`;
+    
+    // Store state for verification
+    sessionStorage.setItem('oauth_state', GITHUB_OAUTH.STATE);
+    
+    // Redirect to GitHub OAuth
+    window.location.href = authUrl;
+  };
+
+  const handleOAuthCallback = async (code, state) => {
+    try {
+      // Verify state
+      const storedState = sessionStorage.getItem('oauth_state');
+      if (state !== storedState) {
+        throw new Error('Invalid OAuth state');
+      }
+
+      // Exchange code for access token
+      // Note: In production, this should be done through your backend server
+      // For demo purposes, we'll simulate the token exchange
+      const tokenResponse = await fetch('/api/oauth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_id: GITHUB_OAUTH.CLIENT_ID,
+          client_secret: process.env.GITHUB_CLIENT_SECRET, // Server-side only!
+          code: code
+        })
+      });
+
+      if (!tokenResponse.ok) {
+        throw new Error('Token exchange failed');
+      }
+
+      const tokenData = await tokenResponse.json();
+      const token = tokenData.access_token;
+
+      // Get user information
+      const userResponse = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (!userResponse.ok) {
+        throw new Error('Failed to get user information');
+      }
+
+      const userData = await userResponse.json();
+
+      // Store authentication data
+      setAccessToken(token);
+      setUser(userData);
+      setIsAuthenticated(true);
+
+      sessionStorage.setItem('github_access_token', token);
+      sessionStorage.setItem('github_user', JSON.stringify(userData));
+
+      // Clean up URL and load data
+      window.history.replaceState({}, document.title, window.location.pathname);
+      loadData();
+
+    } catch (error) {
+      console.error('OAuth callback error:', error);
+      alert('Authentication failed: ' + error.message);
+    }
+  };
+
+  const logout = () => {
+    setAccessToken(null);
+    setUser(null);
+    setIsAuthenticated(false);
+    sessionStorage.removeItem('github_access_token');
+    sessionStorage.removeItem('github_user');
+    sessionStorage.removeItem('oauth_state');
+  };
+
+  // Helper function to save data using OAuth token
+  const saveToGitHubIssues = async (title, data, labels = []) => {
+    if (!accessToken) {
+      throw new Error('Not authenticated. Please login first.');
+    }
+
+    const REPO_OWNER = 'massimocristi1970';
+    const REPO_NAME = 'compliance-monitoring';
+    
+    try {
+      // First, check if an issue with this title already exists
+      const searchResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues?labels=admin-data&state=all`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (!searchResponse.ok) {
+        throw new Error(`Failed to search issues: ${searchResponse.statusText}`);
+      }
+
+      const existingIssues = await searchResponse.json();
+      const existingIssue = existingIssues.find(issue => issue.title === title);
+
+      const body = `\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\`\n\n*Last updated: ${new Date().toISOString()}*\n*Updated by: ${user.login} (${user.name || user.login})*`;
+
+      if (existingIssue) {
+        // Update existing issue
+        const updateResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues/${existingIssue.number}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          body: JSON.stringify({
+            title,
+            body,
+            labels: ['admin-data', ...labels]
+          })
+        });
+
+        if (!updateResponse.ok) {
+          const error = await updateResponse.json();
+          throw new Error(`Failed to update issue: ${error.message}`);
+        }
+
+        console.log(`Updated issue: ${title}`);
+        return await updateResponse.json();
+      } else {
+        // Create new issue
+        const createResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          body: JSON.stringify({
+            title,
+            body,
+            labels: ['admin-data', ...labels]
+          })
+        });
+
+        if (!createResponse.ok) {
+          const error = await createResponse.json();
+          throw new Error(`Failed to create issue: ${error.message}`);
+        }
+
+        console.log(`Created new issue: ${title}`);
+        return await createResponse.json();
+      }
+    } catch (error) {
+      console.error(`Failed to save ${title}:`, error);
+      throw error;
+    }
+  };
+
+  // Helper function to load data from GitHub Issues (public access)
+  const loadFromGitHubIssues = async (title) => {
+    const REPO_OWNER = 'massimocristi1970';
+    const REPO_NAME = 'compliance-monitoring';
+    
+    try {
+      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues?labels=admin-data&state=all`, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load issues: ${response.statusText}`);
+      }
+
+      const issues = await response.json();
+      const issue = issues.find(issue => issue.title === title);
+
+      if (issue) {
+        // Extract JSON from the issue body
+        const jsonMatch = issue.body.match(/```json\n([\s\S]*?)\n```/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[1]);
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error(`Failed to load ${title}:`, error);
+      return null;
+    }
+  };
+
   const loadData = async () => {
     try {
-      // Load existing assignees from dashboard data
-      const response = await fetch('/compliance-monitoring/dashboard/data/compliance-data.json');
-      if (response.ok) {
-        const data = await response.json();
-        const uniqueAssignees = [...new Set(data.map(item => item.responsibility).filter(Boolean))];
-        setAssignees(uniqueAssignees.map(name => ({ 
-          name, 
-          email: `${name.toLowerCase().replace(' ', '.')}@company.com`,
-          role: 'Compliance Officer',
-          githubUsername: name.toLowerCase().replace(' ', '-')
-        })));
-        
-        const uniqueBusinessAreas = [...new Set(data.map(item => item.businessArea).filter(Boolean))];
-        setBusinessAreas(uniqueBusinessAreas.map(area => ({
-          name: area,
-          description: `Compliance area for ${area}`,
-          regulations: area.includes('CCA') ? 'CCA, CONC' : area.includes('SMCR') ? 'SMCR, SUP' : 'Various'
-        })));
-        
-        setComplianceChecks(data.map(check => ({
+      // Load admin configuration from Issues first
+      const adminConfig = await loadFromGitHubIssues('Admin Configuration');
+      if (adminConfig) {
+        if (adminConfig.assignees) setAssignees(adminConfig.assignees);
+        if (adminConfig.businessAreas) setBusinessAreas(adminConfig.businessAreas);
+        if (adminConfig.frequencies) setFrequencies(adminConfig.frequencies);
+      }
+
+      // Load compliance data from Issues
+      const complianceData = await loadFromGitHubIssues('Compliance Data');
+      if (complianceData && Array.isArray(complianceData)) {
+        setComplianceChecks(complianceData.map(check => ({
           ...check,
           priority: check.priority || 'Medium'
         })));
       }
 
-      // Try to load admin configuration
-      try {
-        const adminResponse = await fetch('/compliance-monitoring/dashboard/data/admin-config.json');
-        if (adminResponse.ok) {
-          const adminData = await adminResponse.json();
-          if (adminData.assignees) setAssignees(adminData.assignees);
-          if (adminData.businessAreas) setBusinessAreas(adminData.businessAreas);
-          if (adminData.frequencies) setFrequencies(adminData.frequencies);
+      // Fallback to original JSON loading if Issues data not available
+      if (!adminConfig && !complianceData) {
+        // Load existing assignees from dashboard data
+        const response = await fetch('/compliance-monitoring/dashboard/data/compliance-data.json');
+        if (response.ok) {
+          const data = await response.json();
+          const uniqueAssignees = [...new Set(data.map(item => item.responsibility).filter(Boolean))];
+          setAssignees(uniqueAssignees.map(name => ({ 
+            name, 
+            email: `${name.toLowerCase().replace(' ', '.')}@company.com`,
+            role: 'Compliance Officer',
+            githubUsername: name.toLowerCase().replace(' ', '-')
+          })));
+          
+          const uniqueBusinessAreas = [...new Set(data.map(item => item.businessArea).filter(Boolean))];
+          setBusinessAreas(uniqueBusinessAreas.map(area => ({
+            name: area,
+            description: `Compliance area for ${area}`,
+            regulations: area.includes('CCA') ? 'CCA, CONC' : area.includes('SMCR') ? 'SMCR, SUP' : 'Various'
+          })));
+          
+          setComplianceChecks(data.map(check => ({
+            ...check,
+            priority: check.priority || 'Medium'
+          })));
         }
-      } catch (e) {
-        console.log('Admin config not found, using defaults');
+
+        // Try to load admin configuration from JSON as fallback
+        try {
+          const adminResponse = await fetch('/compliance-monitoring/dashboard/data/admin-config.json');
+          if (adminResponse.ok) {
+            const adminData = await adminResponse.json();
+            if (adminData.assignees) setAssignees(adminData.assignees);
+            if (adminData.businessAreas) setBusinessAreas(adminData.businessAreas);
+            if (adminData.frequencies) setFrequencies(adminData.frequencies);
+          }
+        } catch (e) {
+          console.log('Admin config not found, using defaults');
+        }
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -135,7 +380,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         checkRef,
         status: 'pending',
         uploadDate: new Date().toISOString(),
-        uploadedBy: 'Admin',
+        uploadedBy: user ? `${user.name || user.login} (via OAuth)` : 'Admin',
         files: [],
         comments: '',
         year: parseInt(newCheck.year),
@@ -177,70 +422,12 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
     }
   };
 
-  // Helper function to save files to GitHub
-  const saveFileToGitHub = async (filePath, content, commitMessage) => {
-    const GITHUB_TOKEN = GITHUB_CONFIG.TOKEN;
-    const REPO_OWNER = 'massimocristi1970';
-    const REPO_NAME = 'compliance-monitoring';
-    
-    if (!GITHUB_TOKEN || GITHUB_TOKEN === 'local-development-token') {
-      throw new Error('GitHub token not available. Please check your configuration.');
-    }
-
-    try {
-      // First, try to get the existing file to get its SHA (for updates)
-      let sha = null;
-      try {
-        const existingFileResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`, {
-          headers: {
-            'Authorization': `Bearer ${GITHUB_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json'
-          }
-        });
-        
-        if (existingFileResponse.ok) {
-          const existingFile = await existingFileResponse.json();
-          sha = existingFile.sha;
-        }
-      } catch (e) {
-        console.log(`File ${filePath} doesn't exist yet, will create new file`);
-      }
-
-      // Convert content to base64
-      const base64Content = btoa(unescape(encodeURIComponent(content)));
-
-      // Create or update the file
-      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${GITHUB_TOKEN}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/vnd.github.v3+json'
-        },
-        body: JSON.stringify({
-          message: commitMessage,
-          content: base64Content,
-          branch: 'main',
-          ...(sha && { sha })
-        })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`GitHub API Error: ${error.message || 'Unknown error'}`);
-      }
-
-      const result = await response.json();
-      console.log(`Successfully saved ${filePath} to GitHub`);
-      return result;
-
-    } catch (error) {
-      console.error(`Failed to save ${filePath}:`, error);
-      throw error;
-    }
-  };
-
   const handleSaveChanges = async () => {
+    if (!isAuthenticated) {
+      alert('Please login with GitHub to save changes.');
+      return;
+    }
+
     if (saving) return;
     
     setSaving(true);
@@ -268,15 +455,11 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         completedDate: check.completedDate
       }));
 
-      // Save compliance-data.json
-      console.log('Saving compliance data to GitHub...');
-      await saveFileToGitHub(
-        'dashboard/data/compliance-data.json',
-        JSON.stringify(complianceDataToSave, null, 2),
-        'Update compliance data from Admin Panel'
-      );
+      // Save compliance data
+      console.log('Saving compliance data...');
+      await saveToGitHubIssues('Compliance Data', complianceDataToSave, ['compliance']);
 
-      // Create summary data
+      // Create and save summary data
       const stats = {
         total: complianceChecks.length,
         completed: complianceChecks.filter(item => item.status === 'completed').length,
@@ -296,13 +479,8 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         frequencies: frequencies.length
       };
 
-      // Save summary.json
-      console.log('Saving summary data to GitHub...');
-      await saveFileToGitHub(
-        'dashboard/data/summary.json',
-        JSON.stringify(summaryData, null, 2),
-        'Update summary data from Admin Panel'
-      );
+      console.log('Saving summary data...');
+      await saveToGitHubIssues('Summary Data', summaryData, ['summary']);
 
       // Save admin configuration
       const adminConfig = {
@@ -310,18 +488,14 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         businessAreas,
         frequencies,
         lastUpdated: new Date().toISOString(),
-        updatedBy: 'Admin Panel'
+        updatedBy: `${user.name || user.login} (OAuth)`
       };
 
-      console.log('Saving admin configuration to GitHub...');
-      await saveFileToGitHub(
-        'dashboard/data/admin-config.json',
-        JSON.stringify(adminConfig, null, 2),
-        'Update admin configuration from Admin Panel'
-      );
+      console.log('Saving admin configuration...');
+      await saveToGitHubIssues('Admin Configuration', adminConfig, ['config']);
 
       setSaving(false);
-      alert('Changes saved successfully to GitHub repository!\n\nData files updated:\n• compliance-data.json\n• summary.json\n• admin-config.json\n\nOther users will see these changes immediately.');
+      alert(`Changes saved successfully to GitHub Issues by ${user.name || user.login}!\n\nData stored in repository issues:\n• Compliance Data\n• Summary Data\n• Admin Configuration\n\nOther users will see these changes immediately.`);
       
       if (onDataUpdate) {
         onDataUpdate({
@@ -335,8 +509,8 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
       
     } catch (error) {
       setSaving(false);
-      console.error('Error saving to GitHub:', error);
-      alert('Error saving changes to GitHub: ' + error.message);
+      console.error('Error saving to GitHub Issues:', error);
+      alert('Error saving changes: ' + error.message);
     }
   };
 
@@ -397,7 +571,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
           month,
           monthNumber: monthIndex,
           uploadDate: new Date().toISOString(),
-          uploadedBy: 'Admin Bulk Import',
+          uploadedBy: user ? `${user.name || user.login} (Bulk Import via OAuth)` : 'Admin Bulk Import',
           files: status === 'completed' ? [`${month}_${checkRef}_evidence.pdf`] : [],
           comments: status === 'completed' ? `Bulk generated ${month} check completed.` : '',
           completedDate: status === 'completed' ? `${yearToUse}-${monthIndex.toString().padStart(2, '0')}-15` : undefined
@@ -452,7 +626,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         month: monthNames[selectedMonth - 1],
         monthNumber: selectedMonth,
         uploadDate: new Date().toISOString(),
-        uploadedBy: 'Admin',
+        uploadedBy: user ? `${user.name || user.login} (OAuth)` : 'Admin',
         files: [],
         comments: '',
         completedDate: undefined
@@ -477,6 +651,50 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
     </button>
   );
 
+  // Authentication Gate
+  if (!isAuthenticated) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
+          <div className="text-center">
+            <Settings className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin Panel</h2>
+            <p className="text-gray-600 mb-6">
+              Authentication required to manage compliance data safely.
+            </p>
+            
+            <div className="space-y-4">
+              <button
+                onClick={initiateOAuth}
+                className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <LogIn className="w-5 h-5" />
+                Login with GitHub
+              </button>
+              
+              <button
+                onClick={onClose}
+                className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
+              >
+                Cancel
+              </button>
+            </div>
+            
+            <div className="mt-6 text-xs text-gray-500 bg-gray-50 p-4 rounded-lg">
+              <div className="font-medium mb-2">Why GitHub Authentication?</div>
+              <div className="text-left space-y-1">
+                • Secure access to your compliance repository
+                • Changes are tracked with your GitHub identity  
+                • No hardcoded tokens that get revoked
+                • Standard OAuth security practices
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[90vh] overflow-hidden">
@@ -492,6 +710,19 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* User Info */}
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <User className="w-4 h-4" />
+                <span>{user.name || user.login}</span>
+                <button
+                  onClick={logout}
+                  className="text-red-600 hover:text-red-800 p-1"
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+              
               <button
                 onClick={handleSaveChanges}
                 disabled={saving}
