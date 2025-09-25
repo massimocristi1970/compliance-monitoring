@@ -627,58 +627,56 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   if (!isAuthenticated) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
-          <div className="text-center">
-            <Settings className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin Panel</h2>
-            <p className="text-gray-600 mb-6">
-              Authentication required to manage compliance data safely.
-            </p>
-            
-            <div className="space-y-4">
-              <button
-                onClick={initiateOAuth}
-                className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                <LogIn className="w-5 h-5" />
-                Login with GitHub
-              </button>
-              
-              <button
-                onClick={onClose}
-                className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
-              >
-                Cancel
-              </button>
-            </div>
-            
-            <div className="mt-6 text-xs text-gray-500 bg-gray-50 p-4 rounded-lg">
-              <div className="font-medium mb-2">Why GitHub Authentication?</div>
-              <div className="text-left space-y-1">
-                <div>• Secure access to your compliance repository</div>
-                <div>• Changes are tracked with your GitHub identity</div>  
-                <div>• No hardcoded tokens that get revoked</div>
-                <div>• Standard OAuth security practices</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="p-6 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Settings className="w-6 h-6 text-blue-600" />
+              <h2 className="text-2xl font-bold text-gray-900">Admin Panel</h2>
+              <div className="flex items-center gap-2 ml-6 text-sm text-gray-600">
+                <Calendar className="w-4 h-4" />
+                <span>Working on: <strong>{months[selectedMonth - 1]} {selectedYear}</strong></span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSaveChanges}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+              >
+                <Save className="w-4 h-4" />
+                Save All Changes
+              </button>
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 p-2"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Month/Year Selection */}
+          <div className="flex items-center gap-4 mt-4 p-3 bg-white rounded-lg border">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-blue-600" />
+              <label className="text-sm font-medium text-gray-700">Month:</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                className="border border-gray-300 rounded px-2 py-1 text-sm"
+              >
+                {months.map((month, index) => (
+                  <option key={index} value={index + 1}>{month}</option>
+                ))}
+              </select>
+            </div>
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">Year:</label>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500"
+                className="border border-gray-300 rounded px-2 py-1 text-sm"
               >
                 <option value={2024}>2024</option>
                 <option value={2025}>2025</option>
@@ -686,8 +684,8 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
                 <option value={2027}>2027</option>
               </select>
             </div>
-            <div className="flex-1 text-xs text-blue-700 bg-blue-50 px-3 py-2 rounded">
-              <strong>Active Period:</strong> All new compliance checks will be assigned to <strong>{months[selectedMonth - 1]} {selectedYear}</strong>
+            <div className="text-xs text-gray-500 ml-auto">
+              This affects where new compliance checks will be assigned
             </div>
           </div>
           
