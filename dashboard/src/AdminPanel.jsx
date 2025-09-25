@@ -509,15 +509,15 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
             </div>
           </div>
           
-          {/* Month/Year Selection */}
-          <div className="flex items-center gap-4 mt-4 p-3 bg-white rounded-lg border">
+          {/* Month/Year Selection - Enhanced */}
+          <div className="flex items-center gap-4 mt-4 p-4 bg-white rounded-lg border border-blue-200 shadow-sm">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-blue-600" />
-              <label className="text-sm font-medium text-gray-700">Month:</label>
+              <Calendar className="w-5 h-5 text-blue-600" />
+              <label className="text-sm font-medium text-gray-700">Target Month:</label>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500"
               >
                 {months.map((month, index) => (
                   <option key={index} value={index + 1}>{month}</option>
@@ -529,7 +529,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value={2024}>2024</option>
                 <option value={2025}>2025</option>
@@ -537,8 +537,8 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
                 <option value={2027}>2027</option>
               </select>
             </div>
-            <div className="text-xs text-gray-500 ml-auto">
-              This affects where new compliance checks will be assigned
+            <div className="flex-1 text-xs text-blue-700 bg-blue-50 px-3 py-2 rounded">
+              <strong>Active Period:</strong> All new compliance checks will be assigned to <strong>{months[selectedMonth - 1]} {selectedYear}</strong>
             </div>
           </div>
           
