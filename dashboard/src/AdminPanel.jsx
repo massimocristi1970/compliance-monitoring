@@ -52,7 +52,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
 
   // GitHub OAuth configuration
   const GITHUB_OAUTH = {
-    CLIENT_ID: 'Ov23liBeQ6mRrc1gRYIi', // You'll need to create this
+    CLIENT_ID: 'Ov23liBeQ6mRrc1gRYIi', // Replace with your actual client ID
     REDIRECT_URI: `${window.location.origin}/compliance-monitoring/`,
     SCOPE: 'repo',
     STATE: Math.random().toString(36).substring(2, 15)
@@ -100,38 +100,38 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   };
 
   const handleOAuthCallback = async (code, state) => {
-	try {
-	   // Verify state
-       const storedState = sessionStorage.getItem('oauth_state');
-       if (state !== storedState) {
-         throw new Error('Invalid OAuth state');
-       }
+    try {
+      // Verify state
+      const storedState = sessionStorage.getItem('oauth_state');
+      if (state !== storedState) {
+        throw new Error('Invalid OAuth state');
+      }
 
-       // Temporary: simulate successful authentication for testing
-       const simulatedToken = 'temp_token_for_testing';
-       const userData = {
-         login: 'test_user',
-         name: 'Test User',
-         avatar_url: 'https://github.com/identicons/test.png'
-       };
+      // Temporary: simulate successful authentication for testing
+      const simulatedToken = 'temp_token_for_testing';
+      const userData = {
+        login: 'test_user',
+        name: 'Test User',
+        avatar_url: 'https://github.com/identicons/test.png'
+      };
 
-       // Store authentication data
-       setAccessToken(simulatedToken);
-       setUser(userData);
-       setIsAuthenticated(true);
+      // Store authentication data
+      setAccessToken(simulatedToken);
+      setUser(userData);
+      setIsAuthenticated(true);
 
-       sessionStorage.setItem('github_access_token', simulatedToken);
-       sessionStorage.setItem('github_user', JSON.stringify(userData));
+      sessionStorage.setItem('github_access_token', simulatedToken);
+      sessionStorage.setItem('github_user', JSON.stringify(userData));
 
-       // Clean up URL and load data
-       window.history.replaceState({}, document.title, window.location.pathname);
-       loadData();
+      // Clean up URL and load data
+      window.history.replaceState({}, document.title, window.location.pathname);
+      loadData();
 
-     } catch (error) {
-       console.error('OAuth callback error:', error);
-       alert('Authentication failed: ' + error.message);
-     }
-   };
+    } catch (error) {
+      console.error('OAuth callback error:', error);
+      alert('Authentication failed: ' + error.message);
+    }
+  };
 
   const logout = () => {
     setAccessToken(null);
@@ -655,10 +655,10 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
             <div className="mt-6 text-xs text-gray-500 bg-gray-50 p-4 rounded-lg">
               <div className="font-medium mb-2">Why GitHub Authentication?</div>
               <div className="text-left space-y-1">
-                • Secure access to your compliance repository
-                • Changes are tracked with your GitHub identity  
-                • No hardcoded tokens that get revoked
-                • Standard OAuth security practices
+                <div>• Secure access to your compliance repository</div>
+                <div>• Changes are tracked with your GitHub identity</div>  
+                <div>• No hardcoded tokens that get revoked</div>
+                <div>• Standard OAuth security practices</div>
               </div>
             </div>
           </div>
@@ -673,60 +673,6 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         {/* Header */}
         <div className="p-6 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Settings className="w-6 h-6 text-blue-600" />
-              <h2 className="text-2xl font-bold text-gray-900">Admin Panel</h2>
-              <div className="flex items-center gap-2 ml-6 text-sm text-gray-600">
-                <Calendar className="w-4 h-4" />
-                <span>Working on: <strong>{months[selectedMonth - 1]} {selectedYear}</strong></span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* User Info */}
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <User className="w-4 h-4" />
-                <span>{user.name || user.login}</span>
-                <button
-                  onClick={logout}
-                  className="text-red-600 hover:text-red-800 p-1"
-                  title="Logout"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-              
-              <button
-                onClick={handleSaveChanges}
-                disabled={saving}
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                {saving ? 'Saving...' : 'Save All Changes'}
-              </button>
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 p-2"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-          
-          {/* Month/Year Selection - Enhanced */}
-          <div className="flex items-center gap-4 mt-4 p-4 bg-white rounded-lg border border-blue-200 shadow-sm">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-blue-600" />
-              <label className="text-sm font-medium text-gray-700">Target Month:</label>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500"
-              >
-                {months.map((month, index) => (
-                  <option key={index} value={index + 1}>{month}</option>
-                ))}
-              </select>
-            </div>
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">Year:</label>
               <select
@@ -1299,4 +1245,58 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   );
 };
 
-export default AdminPanel;
+export default AdminPanel; gap-3">
+              <Settings className="w-6 h-6 text-blue-600" />
+              <h2 className="text-2xl font-bold text-gray-900">Admin Panel</h2>
+              <div className="flex items-center gap-2 ml-6 text-sm text-gray-600">
+                <Calendar className="w-4 h-4" />
+                <span>Working on: <strong>{months[selectedMonth - 1]} {selectedYear}</strong></span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* User Info */}
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <User className="w-4 h-4" />
+                <span>{user.name || user.login}</span>
+                <button
+                  onClick={logout}
+                  className="text-red-600 hover:text-red-800 p-1"
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <button
+                onClick={handleSaveChanges}
+                disabled={saving}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? 'Saving...' : 'Save All Changes'}
+              </button>
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 p-2"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Month/Year Selection - Enhanced */}
+          <div className="flex items-center gap-4 mt-4 p-4 bg-white rounded-lg border border-blue-200 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              <label className="text-sm font-medium text-gray-700">Target Month:</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500"
+              >
+                {months.map((month, index) => (
+                  <option key={index} value={index + 1}>{month}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center
