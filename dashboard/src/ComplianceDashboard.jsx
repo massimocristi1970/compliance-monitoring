@@ -47,25 +47,19 @@ const ComplianceDashboard = () => {
   }, []);
 
   useEffect(() => {
-    // Check if user is coming back from OAuth redirect
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
-    
-    if (code) {
-      handleOAuthCallback(code, state);
-    } else {
-      // Check for existing token in session storage
-      const token = sessionStorage.getItem('github_access_token');
-      const userData = sessionStorage.getItem('github_user');
-      
-      if (token && userData) {
-        setAccessToken(token);
-        setUser(JSON.parse(userData));
-        setIsAuthenticated(true);
-      }
-    }
-  }, []);
+	 // Check for existing token in session storage
+     const token = sessionStorage.getItem('github_access_token');
+     const userData = sessionStorage.getItem('github_user');
+  
+     if (token && userData) {
+       setAccessToken(token);
+       setUser(JSON.parse(userData));
+       setIsAuthenticated(true);
+       if (typeof loadData === 'function') {
+         loadData();
+       }
+     }
+   }, []);
 
   const initiateDeviceFlow = async () => {
     try {
@@ -190,40 +184,7 @@ const ComplianceDashboard = () => {
     }
   };
 
-  const handleOAuthCallback = async (code, state) => {
-	try {
-	   // Verify state
-       const storedState = sessionStorage.getItem('oauth_state');
-       if (state !== storedState) {
-         throw new Error('Invalid OAuth state');
-       }
-
-       // Temporary: simulate successful authentication for testing
-       const simulatedToken = 'temp_token_for_testing';
-       const userData = {
-         login: 'test_user',
-         name: 'Test User',
-         avatar_url: 'https://github.com/identicons/test.png'
-       };
-
-       // Store authentication data
-       setAccessToken(simulatedToken);
-       setUser(userData);
-       setIsAuthenticated(true);
-
-       sessionStorage.setItem('github_access_token', simulatedToken);
-       sessionStorage.setItem('github_user', JSON.stringify(userData));
-
-       // Clean up URL
-       window.history.replaceState({}, document.title, window.location.pathname);
-
-     } catch (error) {
-       console.error('OAuth callback error:', error);
-       alert('Authentication failed: ' + error.message);
-     }
-   };
-
-  const logout = () => {
+    const logout = () => {
     setAccessToken(null);
     setUser(null);
     setIsAuthenticated(false);
@@ -618,14 +579,44 @@ const ComplianceDashboard = () => {
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={initiateOAuth}
+               <button
+                  onClick={initiateDeviceFlow}
                   className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800"
                 >
                   <LogIn className="w-4 h-4" />
                   Login with GitHub
                 </button>
               )}
+			  
+			  <button
+				onClick={initiateDeviceFlow}
+				className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
+			  >
+                <LogIn className="w-5 h-5" />
+				Login with GitHub
+			  </button>
+
+			  {showDeviceCode && (
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+				  <h3 className="font-medium text-blue-900 mb-2">Authorization Required</h3>
+				  <p className="text-sm text-blue-800 mb-3">
+				    Go to <strong>github.com/login/device</strong> and enter this code:
+				  </p>
+				  <div className="bg-white p-3 rounded border text-center">
+				   <code className="text-lg font-mono font-bold text-gray-900">{userCode}</code>
+				  </div>
+				  <p className="text-xs text-blue-600 mt-2">
+				    {isPolling ? 'Waiting for authorization...' : 'Please complete authorization'}
+				  </p>
+				</div>
+              )}
+
+			  <button
+			    onClick={onClose}
+				className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
+			  >
+			    Cancel
+			  </button>	
 
               <button
                 onClick={() => setIsAdminMode(!isAdminMode)}
