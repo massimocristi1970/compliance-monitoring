@@ -658,9 +658,50 @@ if (!isAuthenticated) {
 }
 
 return (
-          
-          {/* Enhanced Month/Year Selection with Visual Indicator */}
-          <div className="bg-white rounded-lg border-2 border-blue-200 shadow-sm p-4 mb-4">
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[90vh] overflow-hidden">
+      {/* Header */}
+      <div className="p-6 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Settings className="w-6 h-6 text-blue-600" />
+            <h2 className="text-2xl font-bold text-gray-900">Admin Panel</h2>
+            <div className="flex items-center gap-2 ml-6 text-sm text-gray-600">
+              <Calendar className="w-4 h-4" />
+              <span>Working on: <strong>{months[selectedMonth - 1]} {selectedYear}</strong></span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <User className="w-4 h-4" />
+              <span>{user.name || user.login}</span>
+              <button
+                onClick={logout}
+                className="text-red-600 hover:text-red-800 p-1"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              onClick={handleSaveChanges}
+              disabled={saving}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? 'Saving...' : 'Save All Changes'}
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 p-2"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+        
+        {/* Enhanced Month/Year Selection with Visual Indicator */}
+        <div className="bg-white rounded-lg border-2 border-blue-200 shadow-sm p-4 mb-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-blue-600" />
