@@ -12,6 +12,12 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
+
+  // Add these for Device Flow
+  const [deviceCode, setDeviceCode] = useState(null);
+  const [userCode, setUserCode] = useState(null);
+  const [showDeviceCode, setShowDeviceCode] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
   
   // Date selection for operations - this now controls ALL operations
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -52,7 +58,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
 
   // GitHub OAuth configuration
   const GITHUB_OAUTH = {
-    CLIENT_ID: 'Ov23liBeQ6mRrc1gRYIi', // Replace with your actual client ID
+    CLIENT_ID: 'Iv23liUYUbGhL4AltZ4X', // Replace with your actual client ID
     REDIRECT_URI: `${window.location.origin}/compliance-monitoring/`,
     SCOPE: 'repo',
     STATE: Math.random().toString(36).substring(2, 15)
@@ -89,14 +95,127 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
     }));
   }, [selectedMonth, selectedYear]);
 
-  const initiateOAuth = () => {
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_OAUTH.CLIENT_ID}&redirect_uri=${GITHUB_OAUTH.REDIRECT_URI}&scope=${GITHUB_OAUTH.SCOPE}&state=${GITHUB_OAUTH.STATE}`;
+  const initiateDeviceFlow = async () => {
+	try {
+	  setIsPolling(true);
     
-    // Store state for verification
-    sessionStorage.setItem('oauth_state', GITHUB_OAUTH.STATE);
+      // Step 1: Request device and user codes from GitHub
+      const response = await fetch('https://github.com/login/device/code', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: GITHUB_OAUTH.CLIENT_ID,
+          scope: GITHUB_OAUTH.SCOPE
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get device code');
+      }
+
+      const data = await response.json();
     
-    // Redirect to GitHub OAuth
-    window.location.href = authUrl;
+      // Store the codes and show them to user
+      setDeviceCode(data.device_code);
+      setUserCode(data.user_code);
+      setShowDeviceCode(true);
+    
+      // Start polling for authorization
+      startPolling(data.device_code, data.interval || 5);
+    
+    } catch (error) {
+      setIsPolling(false);
+      alert('Failed to start device flow: ' + error.message);
+    }
+  };
+
+  const startPolling = async (deviceCode, interval) => {
+    const pollForToken = async () => {
+      try {
+        const response = await fetch('https://github.com/login/oauth/access_token', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            client_id: GITHUB_OAUTH.CLIENT_ID,
+            device_code: deviceCode,
+            grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.access_token) {
+          // Success! User authorized the app
+          await handleDeviceFlowSuccess(data.access_token);
+        } else if (data.error === 'authorization_pending') {
+          // User hasn't authorized yet, keep polling
+          setTimeout(pollForToken, interval * 1000);
+        } else if (data.error === 'expired_token') {
+          // Device code expired
+          setIsPolling(false);
+          setShowDeviceCode(false);
+          alert('Authorization expired. Please try again.');
+        } else {
+          throw new Error(data.error_description || data.error);
+        }
+      } catch (error) {
+        setIsPolling(false);
+        setShowDeviceCode(false);
+        alert('Authorization failed: ' + error.message);
+      }
+    };
+
+    pollForToken();
+  };
+  
+  const handleDeviceFlowSuccess = async (accessToken) => {
+    try {
+      // Get user information from GitHub
+      const userResponse = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (!userResponse.ok) {
+        throw new Error('Failed to get user information');
+      }
+
+      const userData = await userResponse.json();
+
+      // Store authentication data
+      setAccessToken(accessToken);
+      setUser(userData);
+      setIsAuthenticated(true);
+
+      sessionStorage.setItem('github_access_token', accessToken);
+      sessionStorage.setItem('github_user', JSON.stringify(userData));
+
+      // Clean up device flow state
+      setIsPolling(false);
+      setShowDeviceCode(false);
+      setDeviceCode(null);
+      setUserCode(null);
+
+      // Load data if this is the AdminPanel
+      if (typeof loadData === 'function') {
+        loadData();
+      }
+
+      console.log('Device Flow authentication successful:', userData.login);
+
+    } catch (error) {
+      setIsPolling(false);
+      setShowDeviceCode(false);
+      alert('Authentication failed: ' + error.message);
+    }
   };
 
   const handleOAuthCallback = async (code, state) => {
