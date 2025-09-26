@@ -1282,4 +1282,3 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
 };
 
 export default AdminPanel;
-              
