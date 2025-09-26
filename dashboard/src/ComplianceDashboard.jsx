@@ -611,13 +611,7 @@ const ComplianceDashboard = () => {
 				</div>
               )}
 
-			  <button
-			    onClick={onClose}
-				className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
-			  >
-			    Cancel
-			  </button>	
-
+			  
               <button
                 onClick={() => setIsAdminMode(!isAdminMode)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
