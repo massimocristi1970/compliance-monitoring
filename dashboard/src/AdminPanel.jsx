@@ -703,52 +703,52 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
 
   // Authentication Gate
 if (!isAuthenticated) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
-        <div className="text-center">
-          <Settings className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin Panel</h2>
-          <p className="text-gray-600 mb-6">
-            Authentication required to manage compliance data safely.
-          </p>
-          
-          <div className="space-y-4">
-            <button
-				onClick={initiateDeviceFlow}
-				className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
-			  >
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
+          <div className="text-center">
+            <Settings className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin Panel</h2>
+            <p className="text-gray-600 mb-6">
+              Authentication required to manage compliance data safely.
+            </p>
+            
+            <div className="space-y-4">
+              <button
+                onClick={initiateDeviceFlow}
+                className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
+              >
                 <LogIn className="w-5 h-5" />
-				Login with GitHub
-			  </button>
+                Login with GitHub
+              </button>
 
-			  {showDeviceCode && (
+              {showDeviceCode && (
                 <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-				  <h3 className="font-medium text-blue-900 mb-2">Authorization Required</h3>
-				  <p className="text-sm text-blue-800 mb-3">
-				    Go to <strong>github.com/login/device</strong> and enter this code:
-				  </p>
-				  <div className="bg-white p-3 rounded border text-center">
-				   <code className="text-lg font-mono font-bold text-gray-900">{userCode}</code>
-				  </div>
-				  <p className="text-xs text-blue-600 mt-2">
-				    {isPolling ? 'Waiting for authorization...' : 'Please complete authorization'}
-				  </p>
-				</div>
+                  <h3 className="font-medium text-blue-900 mb-2">Authorization Required</h3>
+                  <p className="text-sm text-blue-800 mb-3">
+                    Go to <strong>github.com/login/device</strong> and enter this code:
+                  </p>
+                  <div className="bg-white p-3 rounded border text-center">
+                    <code className="text-lg font-mono font-bold text-gray-900">{userCode}</code>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2">
+                    {isPolling ? 'Waiting for authorization...' : 'Please complete authorization'}
+                  </p>
+                </div>
               )}
 
-			  <button
-			    onClick={onClose}
-				className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
-			  >
-			    Cancel
-			  </button>	
+              <button
+                onClick={onClose}
+                className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
 return (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
