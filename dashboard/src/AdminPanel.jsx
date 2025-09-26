@@ -656,36 +656,74 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
             </div>
           </div>
           
-          {/* Month/Year Selection */}
-          <div className="flex items-center gap-4 mt-4 p-3 bg-white rounded-lg border">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-blue-600" />
-              <label className="text-sm font-medium text-gray-700">Month:</label>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              >
-                {months.map((month, index) => (
-                  <option key={index} value={index + 1}>{month}</option>
-                ))}
-              </select>
+          {/* Enhanced Month/Year Selection with Visual Indicator */}
+          <div className="bg-white rounded-lg border-2 border-blue-200 shadow-sm p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                <h3 className="font-semibold text-gray-900">Target Period Selection</h3>
+              </div>
+              <div className="text-sm text-blue-600 font-medium">
+                {complianceChecks.filter(c => c.monthNumber === selectedMonth && c.year === selectedYear).length} checks for this period
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Year:</label>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              >
-                <option value={2024}>2024</option>
-                <option value={2025}>2025</option>
-                <option value={2026}>2026</option>
-                <option value={2027}>2027</option>
-              </select>
+  
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Month:</label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {months.map((month, index) => (
+                    <option key={index} value={index + 1}>{month}</option>
+                  ))}
+                </select>
+              </div>
+    
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Year:</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value={2024}>2024</option>
+                  <option value={2025}>2025</option>
+                  <option value={2026}>2026</option>
+                  <option value={2027}>2027</option>
+                </select>
+              </div>
+    
+              <div className="bg-blue-50 px-3 py-2 rounded-lg">
+                <div className="text-xs text-blue-800 font-medium">
+                  Working on: {months[selectedMonth - 1]} {selectedYear}
+                </div>
+                <div className="text-xs text-blue-600">
+                  All new items assigned to this period
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-gray-500 ml-auto">
-              This affects where new compliance checks will be assigned
+  
+            {/* Period Statistics */}
+            <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-200">
+              <div className="text-center">
+                <div className="text-lg font-bold text-gray-900">{complianceChecks.filter(c => c.monthNumber === selectedMonth && c.year === selectedYear).length}</div>
+                <div className="text-xs text-gray-600">Total</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-green-600">{complianceChecks.filter(c => c.monthNumber === selectedMonth && c.year === selectedYear && c.status === 'completed').length}</div>
+                <div className="text-xs text-gray-600">Completed</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-blue-600">{complianceChecks.filter(c => c.monthNumber === selectedMonth && c.year === selectedYear && c.status === 'pending').length}</div>
+                <div className="text-xs text-gray-600">Pending</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-red-600">{complianceChecks.filter(c => c.monthNumber === selectedMonth && c.year === selectedYear && c.status === 'overdue').length}</div>
+                <div className="text-xs text-gray-600">Overdue</div>
+              </div>
             </div>
           </div>
           
