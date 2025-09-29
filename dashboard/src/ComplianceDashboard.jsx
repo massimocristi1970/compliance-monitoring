@@ -45,40 +45,41 @@ const ComplianceDashboard = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-         // Try to get stored token
-         let token = localStorage.getItem('github_token');
-      
-         const userData = {
-           login: firebaseUser.displayName,
-           name: firebaseUser.displayName,
-           avatar_url: firebaseUser.photoURL,
-         };
+        // Get the full credential data from the last successful sign-in
+        const lastSignInProvider = firebaseUser.providerData.find(
+          p => p.providerId === GithubAuthProvider.PROVIDER_ID
+        );
+        const token = lastSignInProvider?.accessToken;
 
-         setAccessToken(token);
-         setUser(userData);
-         setIsAuthenticated(true);
+        // Map Firebase user data to the existing user object structure
+        const userData = {
+          login: lastSignInProvider?.screenName || firebaseUser.displayName,
+          name: firebaseUser.displayName,
+          avatar_url: firebaseUser.photoURL,
+        };
 
-         loadComplianceData(); 
-         loadSummaryData();
-       } else {
-         setAccessToken(null);
-         setUser(null);
-         setIsAuthenticated(false);
-         localStorage.removeItem('github_token');
-       }
-     });
+        setAccessToken(token);
+        setUser(userData);
+        setIsAuthenticated(true);
 
-     return () => unsubscribe();
-   }, []);
+        // Refresh the data when the user signs in
+        loadComplianceData(); 
+        loadSummaryData();
+
+      } else {
+        // User is signed out
+        setAccessToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const login = async () => {
     try {
-      const result = await signInWithPopup(auth, githubProvider);
-      const credential = GithubAuthProvider.credentialFromResult(result);
-      const token = credential.accessToken;
-    
-      // Store the token
-      localStorage.setItem('github_token', token);
+      await signInWithPopup(auth, githubProvider);
     } catch (error) {
       console.error('Firebase GitHub sign-in error:', error.message);
       alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
@@ -491,17 +492,14 @@ const ComplianceDashboard = () => {
               </button>
               
               {isAdminMode && (
-				<button
-				  onClick={() => {
-				    console.log('Opening Admin Panel - accessToken:', accessToken);
-				    setShowAdminPanel(true);
-				  }}
-				  className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-				 >
-				  <Settings className="w-4 h-4" />
-				  Admin Panel
-				 </button>
-			   )}
+                <button
+                  onClick={() => setShowAdminPanel(true)}
+                  className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+                >
+                  <Settings className="w-4 h-4" />
+                  Admin Panel
+                </button>
+              )}
               
               <button
                 onClick={loadComplianceData}
@@ -765,9 +763,6 @@ const ComplianceDashboard = () => {
           <AdminPanel
             onClose={() => setShowAdminPanel(false)}
             onDataUpdate={handleAdminDataUpdate}
-            isAuthenticated={isAuthenticated}
-            user={user}
-            accessToken={accessToken}
           />
         )}
 
@@ -948,3 +943,27 @@ const ComplianceDashboard = () => {
 };
 
 export default ComplianceDashboard;
+                <p className="text-sm font-medium text-gray-500">Total</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-50 rounded-lg">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Completed</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-50 rounded-lg">
+                <Clock className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
