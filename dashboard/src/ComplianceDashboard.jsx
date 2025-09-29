@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Upload, FileText, CheckCircle, AlertCircle, Clock, Users, Filter, Download, MessageSquare, Eye, RefreshCw, Settings, Shield, LogIn, LogOut } from 'lucide-react';
+import { 
+  auth, 
+  githubProvider, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged 
+} from './firebase';
+import { GithubAuthProvider } from 'firebase/auth';
 import AdminPanel from './AdminPanel';
 
 const ComplianceDashboard = () => {
@@ -21,24 +29,11 @@ const ComplianceDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
-  
-  // Add these for Device Flow
-  const [deviceCode, setDeviceCode] = useState(null);
-  const [userCode, setUserCode] = useState(null);
-  const [showDeviceCode, setShowDeviceCode] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
-
-  // GitHub OAuth configuration
-  const GITHUB_OAUTH = {
-    CLIENT_ID: 'Iv23liUYUbGhL4AltZ4X', 
-    REDIRECT_URI: `${window.location.origin}/compliance-monitoring/`,
-    SCOPE: 'repo'    
-  };
 
   // Load data from JSON files
   useEffect(() => {
@@ -46,148 +41,58 @@ const ComplianceDashboard = () => {
     loadSummaryData();
   }, []);
 
+  // Firebase listener to manage authentication state (CORRECTED VERSION)
   useEffect(() => {
-	 // Check for existing token in session storage
-     const token = sessionStorage.getItem('github_access_token');
-     const userData = sessionStorage.getItem('github_user');
-  
-     if (token && userData) {
-       setAccessToken(token);
-       setUser(JSON.parse(userData));
-       setIsAuthenticated(true);
-       if (typeof loadData === 'function') {
-         loadData();
-       }
-     }
-   }, []);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Get the full credential data from the last successful sign-in
+        const lastSignInProvider = firebaseUser.providerData.find(
+          p => p.providerId === GithubAuthProvider.PROVIDER_ID
+        );
+        const token = lastSignInProvider?.accessToken;
 
-  const initiateDeviceFlow = async () => {
+        // Map Firebase user data to the existing user object structure
+        const userData = {
+          login: lastSignInProvider?.screenName || firebaseUser.displayName,
+          name: firebaseUser.displayName,
+          avatar_url: firebaseUser.photoURL,
+        };
+
+        setAccessToken(token);
+        setUser(userData);
+        setIsAuthenticated(true);
+
+        // Refresh the data when the user signs in
+        loadComplianceData(); 
+        loadSummaryData();
+
+      } else {
+        // User is signed out
+        setAccessToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const login = async () => {
     try {
-      setIsPolling(true);
-    
-      // Step 1: Request device and user codes from GitHub
-      const response = await fetch('https://github.com/login/device/code', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          client_id: GITHUB_OAUTH.CLIENT_ID,
-          scope: GITHUB_OAUTH.SCOPE
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get device code');
-      }
-
-      const data = await response.json();
-    
-      // Store the codes and show them to user
-      setDeviceCode(data.device_code);
-      setUserCode(data.user_code);
-      setShowDeviceCode(true);
-    
-      // Start polling for authorization
-      startPolling(data.device_code, data.interval || 5);
-    
+      await signInWithPopup(auth, githubProvider);
     } catch (error) {
-      setIsPolling(false);
-      alert('Failed to start device flow: ' + error.message);
-    }
-  };
-  
-  const startPolling = async (deviceCode, interval) => {
-    const pollForToken = async () => {
-      try {
-        const response = await fetch('https://github.com/login/oauth/access_token', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            client_id: GITHUB_OAUTH.CLIENT_ID,
-            device_code: deviceCode,
-            grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
-          })
-        });
-
-        const data = await response.json();
-
-        if (data.access_token) {
-          // Success! User authorized the app
-          await handleDeviceFlowSuccess(data.access_token);
-        } else if (data.error === 'authorization_pending') {
-          // User hasn't authorized yet, keep polling
-          setTimeout(pollForToken, interval * 1000);
-        } else if (data.error === 'expired_token') {
-          // Device code expired
-          setIsPolling(false);
-          setShowDeviceCode(false);
-          alert('Authorization expired. Please try again.');
-        } else {
-          throw new Error(data.error_description || data.error);
-        }
-      } catch (error) {
-        setIsPolling(false);
-        setShowDeviceCode(false);
-        alert('Authorization failed: ' + error.message);
-      }
-    };
-
-    pollForToken();
-  };
-  
-  const handleDeviceFlowSuccess = async (accessToken) => {
-    try {
-      // Get user information from GitHub
-      const userResponse = await fetch('https://api.github.com/user', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
-      });
-
-      if (!userResponse.ok) {
-        throw new Error('Failed to get user information');
-      }
-
-      const userData = await userResponse.json();
-
-      // Store authentication data
-      setAccessToken(accessToken);
-      setUser(userData);
-      setIsAuthenticated(true);
-
-      sessionStorage.setItem('github_access_token', accessToken);
-      sessionStorage.setItem('github_user', JSON.stringify(userData));
-
-      // Clean up device flow state
-      setIsPolling(false);
-      setShowDeviceCode(false);
-      setDeviceCode(null);
-      setUserCode(null);
-
-      // Load data if this is the AdminPanel
-      if (typeof loadData === 'function') {
-        loadData();
-      }
-
-      console.log('Device Flow authentication successful:', userData.login);
-
-    } catch (error) {
-      setIsPolling(false);
-      setShowDeviceCode(false);
-      alert('Authentication failed: ' + error.message);
+      console.error('Firebase GitHub sign-in error:', error.message);
+      alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
     }
   };
 
-    const logout = () => {
-    setAccessToken(null);
-    setUser(null);
-    setIsAuthenticated(false);
+  const logout = () => {
+    signOut(auth).then(() => {
+      console.log('User signed out successfully.');
+    }).catch((error) => {
+      console.error('Sign-out error:', error.message);
+      alert('Sign-out failed: ' + error.message);
+    });
     sessionStorage.removeItem('github_access_token');
     sessionStorage.removeItem('github_user');
     sessionStorage.removeItem('oauth_state');
@@ -197,14 +102,12 @@ const ComplianceDashboard = () => {
     try {
       setLoading(true);
       
-      // Try to load from GitHub Issues first
       const issuesData = await loadFromGitHubIssues('Compliance Data');
       if (issuesData && Array.isArray(issuesData)) {
         setComplianceData(issuesData);
         console.log(`📊 Loaded ${issuesData.length} compliance checks from GitHub Issues`);
         setError(null);
       } else {
-        // Fallback to JSON file
         const response = await fetch('/compliance-monitoring/dashboard/data/compliance-data.json');
         
         if (response.ok) {
@@ -213,7 +116,6 @@ const ComplianceDashboard = () => {
           console.log(`📊 Loaded ${data.length} compliance checks from JSON`);
           setError(null);
         } else {
-          // Last resort: sample data
           console.log('📄 Using sample data - no data source available');
           setComplianceData(getSampleData());
           setError('Using sample data - authenticate to access live data');
@@ -228,7 +130,6 @@ const ComplianceDashboard = () => {
     }
   };
 
-  // Helper function to load data from GitHub Issues (public access)
   const loadFromGitHubIssues = async (title) => {
     const REPO_OWNER = 'massimocristi1970';
     const REPO_NAME = 'compliance-monitoring';
@@ -248,7 +149,6 @@ const ComplianceDashboard = () => {
       const issue = issues.find(issue => issue.title === title);
 
       if (issue) {
-        // Extract JSON from the issue body
         const jsonMatch = issue.body.match(/```json\n([\s\S]*?)\n```/);
         if (jsonMatch) {
           return JSON.parse(jsonMatch[1]);
@@ -264,12 +164,10 @@ const ComplianceDashboard = () => {
 
   const loadSummaryData = async () => {
     try {
-      // Try to load from GitHub Issues first
       const summaryData = await loadFromGitHubIssues('Summary Data');
       if (summaryData) {
         setSummary(summaryData);
       } else {
-        // Fallback to JSON file
         const response = await fetch('/compliance-monitoring/dashboard/data/summary.json');
         if (response.ok) {
           const data = await response.json();
@@ -322,10 +220,8 @@ const ComplianceDashboard = () => {
     }
   ];
 
-  // Get unique responsibilities for filter
   const responsibilities = [...new Set(complianceData.map(item => item.responsibility).filter(Boolean))];
 
-  // Filter data by selected criteria
   const filteredData = complianceData.filter(item => {
     const matchesMonth = item.monthNumber === selectedMonth;
     const matchesYear = item.year === selectedYear;
@@ -357,18 +253,12 @@ const ComplianceDashboard = () => {
   };
 
   const updateCheckStatus = async (checkRef, updates) => {
-    // Update local state immediately
     setComplianceData(prev => prev.map(item => 
       item.checkRef === checkRef ? { ...item, ...updates } : item
     ));
-
     console.log(`📝 Updated check ${checkRef}:`, updates);
-    
-    // Note: In a full implementation, this would save back to GitHub Issues
-    // For now, changes are only local until the next admin panel save
   };
 
-  // OAuth-enabled file upload
   const handleFileUpload = async (checkRef, files) => {
     if (!isAuthenticated) {
       alert('Please authenticate with GitHub to upload files.');
@@ -384,13 +274,9 @@ const ComplianceDashboard = () => {
       const uploadedFiles = [];
       
       for (const file of Array.from(files)) {
-        // Convert file to base64
         const base64Content = await fileToBase64(file);
-        
-        // Create the file path
         const filePath = `data/${selectedYear}/${months[selectedMonth-1].toLowerCase()}/check-${checkRef}/${file.name}`;
         
-        // GitHub API request using OAuth token
         const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`, {
           method: 'PUT',
           headers: {
@@ -419,7 +305,6 @@ const ComplianceDashboard = () => {
         }
       }
       
-      // Update the compliance check with real file info
       const updates = {
         files: [
           ...(complianceData.find(item => item.checkRef === checkRef)?.files || []), 
@@ -445,13 +330,11 @@ const ComplianceDashboard = () => {
     }
   };
 
-  // Helper function to convert file to base64
   const fileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
-        // Remove the data:mime/type;base64, prefix
         const base64 = reader.result.split(',')[1];
         resolve(base64);
       };
@@ -459,13 +342,26 @@ const ComplianceDashboard = () => {
     });
   };
 
-  // Enhanced file display component
+  // Improved FileList component
   const FileList = ({ files, checkRef }) => {
+    const normalizedFiles = files?.map(file => {
+      if (typeof file === 'string') {
+        return { name: file, url: null, type: 'legacy' };
+      }
+      return file;
+    }) || [];
+
     return (
       <div className="mt-2 space-y-1">
-        {files?.map((file, index) => (
+        {normalizedFiles.map((file, index) => (
           <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
-            <span>{typeof file === 'string' ? file : file.name}</span>
+            <div className="flex items-center gap-2">
+              <FileText className="w-3 h-3 text-gray-400" />
+              <span>{file.name}</span>
+              {file.type === 'legacy' && (
+                <span className="text-xs text-gray-500 bg-gray-200 px-1 rounded">legacy</span>
+              )}
+            </div>
             {file.url && (
               <a 
                 href={file.url} 
@@ -482,7 +378,6 @@ const ComplianceDashboard = () => {
     );
   };
 
-  // Dashboard statistics
   const stats = {
     total: filteredData.length,
     completed: filteredData.filter(item => item.status === 'completed').length,
@@ -516,10 +411,8 @@ const ComplianceDashboard = () => {
     
     console.log('📊 Monthly Report Generated:', report);
     
-    // Create downloadable JSON
     const dataStr = JSON.stringify(report, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
     const exportFileDefaultName = `compliance-report-${selectedYear}-${selectedMonth.toString().padStart(2, '0')}.json`;
     
     const linkElement = document.createElement('a');
@@ -531,7 +424,6 @@ const ComplianceDashboard = () => {
   };
 
   const handleAdminDataUpdate = (newData) => {
-    // Update compliance data from admin panel
     if (newData.complianceChecks) {
       setComplianceData(newData.complianceChecks);
       console.log('📊 Admin panel updated compliance data');
@@ -565,7 +457,6 @@ const ComplianceDashboard = () => {
               )}
             </div>
             <div className="flex flex-col sm:flex-row gap-3 mt-4 md:mt-0">
-              {/* Authentication Status */}
               {isAuthenticated ? (
                 <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm">
                   <CheckCircle className="w-4 h-4 text-green-600" />
@@ -580,38 +471,14 @@ const ComplianceDashboard = () => {
                 </div>
               ) : (
                <button
-                  onClick={initiateDeviceFlow}
+                  onClick={login}
                   className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800"
                 >
                   <LogIn className="w-4 h-4" />
                   Login with GitHub
                 </button>
               )}
-			  
-			  <button
-				onClick={initiateDeviceFlow}
-				className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
-			  >
-                <LogIn className="w-5 h-5" />
-				Login with GitHub
-			  </button>
 
-			  {showDeviceCode && (
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-				  <h3 className="font-medium text-blue-900 mb-2">Authorization Required</h3>
-				  <p className="text-sm text-blue-800 mb-3">
-				    Go to <strong>github.com/login/device</strong> and enter this code:
-				  </p>
-				  <div className="bg-white p-3 rounded border text-center">
-				   <code className="text-lg font-mono font-bold text-gray-900">{userCode}</code>
-				  </div>
-				  <p className="text-xs text-blue-600 mt-2">
-				    {isPolling ? 'Waiting for authorization...' : 'Please complete authorization'}
-				  </p>
-				</div>
-              )}
-
-			  
               <button
                 onClick={() => setIsAdminMode(!isAdminMode)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
@@ -754,30 +621,6 @@ const ComplianceDashboard = () => {
                 <FileText className="w-6 h-6 text-blue-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Total</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-50 rounded-lg">
-                <CheckCircle className="w-6 h-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Completed</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <Clock className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Pending</p>
                 <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
               </div>
@@ -844,56 +687,17 @@ const ComplianceDashboard = () => {
               <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <h3 className="text-lg font-medium mb-2">No compliance checks found</h3>
               <p>No checks found for {months[selectedMonth - 1]} {selectedYear} with the selected filters.</p>
-              {isAdminMode ? (
-                <button
-                  onClick={() => setShowAdminPanel(true)}
-                  className="mt-4 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-                >
-                  Add Checks in Admin Panel
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    setSelectedMonth(9);
-                    setSelectedYear(2025);
-                    setFilterStatus('all');
-                    setFilterResponsibility('all');
-                  }}
-                  className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                >
-                  View Sample Data (Sep 2025)
-                </button>
-              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Check
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Business Area
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Frequency
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Responsibility
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Due Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Files
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business Area</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsibility</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -908,11 +712,6 @@ const ComplianceDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900 max-w-xs truncate">{check.businessArea}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold bg-gray-100 text-gray-800 rounded-full">
-                          {check.frequency}
-                        </span>
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {check.responsibility}
                       </td>
@@ -921,15 +720,6 @@ const ComplianceDashboard = () => {
                           {getStatusIcon(check.status)}
                           {check.status.replace('_', ' ').toUpperCase()}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {check.dueDate ? new Date(check.dueDate).toLocaleDateString() : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm text-gray-500">{check.files?.length || 0} files</span>
-                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center gap-2">
@@ -973,6 +763,9 @@ const ComplianceDashboard = () => {
           <AdminPanel
             onClose={() => setShowAdminPanel(false)}
             onDataUpdate={handleAdminDataUpdate}
+            isAuthenticated={isAuthenticated}
+            user={user}
+            accessToken={accessToken}
           />
         )}
 
@@ -1006,56 +799,8 @@ const ComplianceDashboard = () => {
                     <p className="text-sm text-gray-900">{selectedCheck.businessArea}</p>
                   </div>
                   <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Frequency</h4>
-                    <p className="text-sm text-gray-900">{selectedCheck.frequency}</p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Responsibility</h4>
                     <p className="text-sm text-gray-900">{selectedCheck.responsibility}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Status</h4>
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedCheck.status)}`}>
-                      {getStatusIcon(selectedCheck.status)}
-                      {selectedCheck.status.replace('_', ' ').toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-
-                {selectedCheck.dueDate && (
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Due Date</h4>
-                      <p className="text-sm text-gray-900">{new Date(selectedCheck.dueDate).toLocaleDateString()}</p>
-                    </div>
-                    {selectedCheck.completedDate && (
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Completed Date</h4>
-                        <p className="text-sm text-gray-900">{new Date(selectedCheck.completedDate).toLocaleDateString()}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">
-                    <MessageSquare className="w-4 h-4 inline mr-1" />
-                    Comments
-                  </h4>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <textarea
-                      value={selectedCheck.comments || ''}
-                      onChange={(e) => {
-                        const updatedCheck = { ...selectedCheck, comments: e.target.value };
-                        setSelectedCheck(updatedCheck);
-                        updateCheckStatus(selectedCheck.checkRef, { comments: e.target.value });
-                      }}
-                      placeholder="Add comments about this compliance check..."
-                      className="w-full h-24 border-0 bg-transparent resize-none focus:ring-0 text-sm"
-                    />
                   </div>
                 </div>
 
@@ -1093,9 +838,7 @@ const ComplianceDashboard = () => {
                   </select>
                   {isAuthenticated ? (
                     <button
-                      onClick={() => {
-                        setShowFileUpload(true);
-                      }}
+                      onClick={() => setShowFileUpload(true)}
                       className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
                     >
                       <Upload className="w-4 h-4" />
@@ -1143,7 +886,7 @@ const ComplianceDashboard = () => {
                       You need to authenticate with GitHub to upload files to the repository.
                     </p>
                     <button
-                      onClick={initiateOAuth}
+                      onClick={login}
                       className="bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800"
                     >
                       Login with GitHub
@@ -1196,48 +939,34 @@ const ComplianceDashboard = () => {
             </div>
           </div>
         )}
-
-        {/* System Status */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mt-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">System Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-gray-600">
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">Data Source</h4>
-              <p>{error ? '⚠️ Sample/Fallback Data' : '✅ Live Data (GitHub Issues)'}</p>
-              <p className="text-xs mt-1">{isAuthenticated ? 'Authenticated access' : 'Public read-only'}</p>
-            </div>
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">Repository</h4>
-              <p>📂 GitHub: massimocristi1970/compliance-monitoring</p>
-              <a 
-                href="https://github.com/massimocristi1970/compliance-monitoring" 
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-xs"
-              >
-                View Repository →
-              </a>
-            </div>
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">Authentication</h4>
-              <p>{isAuthenticated ? `✅ Logged in as ${user.login}` : '❌ Not authenticated'}</p>
-              <p className="text-xs mt-1">Dashboard version 3.0 (OAuth Enabled)</p>
-            </div>
-          </div>
-          
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">🚀 OAuth Integration Complete</h4>
-            <div className="text-sm text-blue-800 space-y-1">
-              <p><strong>For All Users:</strong> View compliance checks, generate reports, and browse data</p>
-              <p><strong>For Authenticated Users:</strong> Upload files, save changes, and access live data</p>
-              <p><strong>For Admins:</strong> Full admin panel access to manage the entire system</p>
-              <p><strong>Security:</strong> No more token revocation issues - proper OAuth implementation</p>
-            </div>
-          </div>
-        </div>
+        
       </div>
     </div>
   );
 };
 
 export default ComplianceDashboard;
+                <p className="text-sm font-medium text-gray-500">Total</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-50 rounded-lg">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Completed</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-50 rounded-lg">
+                <Clock className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
