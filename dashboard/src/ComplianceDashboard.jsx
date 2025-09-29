@@ -45,41 +45,40 @@ const ComplianceDashboard = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Get the full credential data from the last successful sign-in
-        const lastSignInProvider = firebaseUser.providerData.find(
-          p => p.providerId === GithubAuthProvider.PROVIDER_ID
-        );
-        const token = lastSignInProvider?.accessToken;
+         // Try to get stored token
+         let token = localStorage.getItem('github_token');
+      
+         const userData = {
+           login: firebaseUser.displayName,
+           name: firebaseUser.displayName,
+           avatar_url: firebaseUser.photoURL,
+         };
 
-        // Map Firebase user data to the existing user object structure
-        const userData = {
-          login: lastSignInProvider?.screenName || firebaseUser.displayName,
-          name: firebaseUser.displayName,
-          avatar_url: firebaseUser.photoURL,
-        };
+         setAccessToken(token);
+         setUser(userData);
+         setIsAuthenticated(true);
 
-        setAccessToken(token);
-        setUser(userData);
-        setIsAuthenticated(true);
+         loadComplianceData(); 
+         loadSummaryData();
+       } else {
+         setAccessToken(null);
+         setUser(null);
+         setIsAuthenticated(false);
+         localStorage.removeItem('github_token');
+       }
+     });
 
-        // Refresh the data when the user signs in
-        loadComplianceData(); 
-        loadSummaryData();
-
-      } else {
-        // User is signed out
-        setAccessToken(null);
-        setUser(null);
-        setIsAuthenticated(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
+     return () => unsubscribe();
+   }, []);
 
   const login = async () => {
     try {
-      await signInWithPopup(auth, githubProvider);
+      const result = await signInWithPopup(auth, githubProvider);
+      const credential = GithubAuthProvider.credentialFromResult(result);
+      const token = credential.accessToken;
+    
+      // Store the token
+      localStorage.setItem('github_token', token);
     } catch (error) {
       console.error('Firebase GitHub sign-in error:', error.message);
       alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
