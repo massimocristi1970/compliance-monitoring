@@ -62,36 +62,25 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Get the full credential data from the last successful sign-in
-        // This ensures we capture the GitHub access token.
-        // We use .auth.currentUser.getIdTokenResult(true) to ensure the latest token is used
-        const tokenResult = await firebaseUser.getIdTokenResult(true);
-        const githubToken = tokenResult.claims['github_access_token'];
+        // Get provider data for user details (not for the token)
+        const lastSignInProvider = firebaseUser.providerData.find(
+          p => p.providerId === GithubAuthProvider.PROVIDER_ID
+        );
 
         // Map Firebase user data to the existing user object structure
         const userData = {
-          login: firebaseUser.reloadUserInfo?.screenName || firebaseUser.displayName,
+          login: lastSignInProvider?.screenName || firebaseUser.displayName,
           name: firebaseUser.displayName,
           avatar_url: firebaseUser.photoURL,
         };
-        
-        // Fallback for getting GitHub token if claims aren't fully populated yet
-        let finalToken = githubToken;
-        if (!finalToken) {
-           const providerData = firebaseUser.providerData.find(
-             p => p.providerId === GithubAuthProvider.PROVIDER_ID
-           );
-           finalToken = providerData?.accessToken;
-        }
 
-        setAccessToken(finalToken);
+        // NOTE: setAccessToken is NOT called here anymore.
         setUser(userData);
         setIsAuthenticated(true);
 
-        // If this is the AdminPanel, run the specific loadData function
-        if (typeof loadData === 'function') {
-          loadData();
-        }
+        // Refresh the data when the user signs in
+        loadComplianceData();  
+        loadSummaryData();
 
       } else {
         // User is signed out
@@ -101,7 +90,6 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
       }
     });
 
-    // Cleanup listener on component unmount
     return () => unsubscribe();
   }, []);
 
@@ -116,10 +104,17 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
 
   const login = async () => {
     try {
-      await signInWithPopup(auth, githubProvider);
-      // State is managed by the onAuthStateChanged listener now.
+      // 1. Capture the result of the sign-in
+      const result = await signInWithPopup(auth, githubProvider);
+    
+      // 2. Extract the GitHub Access Token from the result
+      const credential = GithubAuthProvider.credentialFromResult(result);
+      const token = credential.accessToken;
+    
+      // 3. Set the accessToken state immediately
+      setAccessToken(token); 
+
     } catch (error) {
-      // Handle common errors like popup closed by user or permission denied
       console.error('Firebase GitHub sign-in error:', error.message);
       alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
     }
