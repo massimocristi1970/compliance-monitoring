@@ -491,14 +491,17 @@ const ComplianceDashboard = () => {
               </button>
               
               {isAdminMode && (
-                <button
-                  onClick={() => setShowAdminPanel(true)}
-                  className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-                >
-                  <Settings className="w-4 h-4" />
-                  Admin Panel
-                </button>
-              )}
+				<button
+				  onClick={() => {
+				    console.log('Opening Admin Panel - accessToken:', accessToken);
+				    setShowAdminPanel(true);
+				  }}
+				  className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+				 >
+				  <Settings className="w-4 h-4" />
+				  Admin Panel
+				 </button>
+			   )}
               
               <button
                 onClick={loadComplianceData}
