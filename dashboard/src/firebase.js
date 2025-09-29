@@ -1,7 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { auth, githubProvider, signInWithPopup, signOut, onAuthStateChanged } from './firebase';
+import { getAuth, GithubAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 
-// ⚠️ IMPORTANT: Replace all 'YOUR_...' placeholders with the actual config keys from your Firebase project.
 const firebaseConfig = {
   apiKey: "AIzaSyDrTb9daKVmyYa7MhA3-Bb0rBxkdVKaEY4",
   authDomain: "compliance-dashboard-prod.firebaseapp.com",
