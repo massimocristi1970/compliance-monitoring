@@ -78,24 +78,20 @@ const ComplianceDashboard = () => {
   }, []);
 
   const login = async () => {
-    try {
-      // 1. Initiate sign-in and wait for the result
-      const result = await signInWithPopup(auth, githubProvider);
+	try {
+	   const result = await signInWithPopup(auth, githubProvider);
     
-      // 2. CRITICAL FIX: Extract the credential object from the result
-      const credential = GithubAuthProvider.credentialFromResult(result);
+       // CRITICAL FIX: Extract the token directly from the sign-in result
+       const credential = GithubAuthProvider.credentialFromResult(result);
+       const token = credential.accessToken;
     
-      // 3. Capture the actual GitHub Access Token
-      const token = credential.accessToken;
-    
-      // 4. Set the state variable immediately for use
-      setAccessToken(token); 
+       setAccessToken(token); 
 
-    } catch (error) {
-      console.error('Firebase GitHub sign-in error:', error.message);
-      alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
-    }
-  };
+     } catch (error) {
+       console.error('Firebase GitHub sign-in error:', error.message);
+       alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
+     }
+   };
 
   const logout = () => {
     signOut(auth).then(() => {
@@ -119,7 +115,7 @@ const ComplianceDashboard = () => {
         console.log(`📊 Loaded ${issuesData.length} compliance checks from GitHub Issues`);
         setError(null);
       } else {
-        const response = await fetch('./dashboard/data/compliance-data.json');
+        const response = await fetch('./data/compliance-data.json');
         
         if (response.ok) {
           const data = await response.json();
@@ -179,7 +175,7 @@ const ComplianceDashboard = () => {
       if (summaryData) {
         setSummary(summaryData);
       } else {
-        const response = await fetch('./dashboard/data/summary.json');
+        const response = await fetch('./data/summary.json');
         if (response.ok) {
           const data = await response.json();
           setSummary(data);
