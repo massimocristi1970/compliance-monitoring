@@ -118,7 +118,7 @@ const ComplianceDashboard = () => {
         console.log(`📊 Loaded ${issuesData.length} compliance checks from GitHub Issues`);
         setError(null);
       } else {
-        const response = await C:\Dev\GitHub\compliance-monitoring\dashboard\data;
+        const response = await fetch('../data/compliance-data.json');
         
         if (response.ok) {
           const data = await response.json();
