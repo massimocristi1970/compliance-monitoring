@@ -58,15 +58,15 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
     'july', 'august', 'september', 'october', 'november', 'december'
   ];
 
-  // Firebase listener to manage authentication state (CORRECTED VERSION)
+  // Firebase listener to manage authentication state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Get provider data for user details (keep this for user data)
+        // Get provider data for user details
         const lastSignInProvider = firebaseUser.providerData.find(
           p => p.providerId === GithubAuthProvider.PROVIDER_ID
         );
-        
+      
         // Map Firebase user data to the existing user object structure
         const userData = {
           login: lastSignInProvider?.screenName || firebaseUser.displayName,
@@ -75,9 +75,20 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         };
 
         setUser(userData);
-        setIsAuthenticated(true);
+      
+        // Retrieve token from sessionStorage
+        const storedToken = sessionStorage.getItem('github_access_token');
+        if (storedToken) {
+          setAccessToken(storedToken);
+          setIsAuthenticated(true);
+          console.log('Token retrieved from sessionStorage');
+        } else {
+          // No token found - user needs to re-authenticate
+          setIsAuthenticated(false);
+          console.warn('User authenticated but no token found. Please login again.');
+        }
 
-       // If this is the AdminPanel, run the specific loadData function
+        // If this is the AdminPanel, run the specific loadData function
         if (typeof loadData === 'function') {
           loadData();
         }
@@ -104,14 +115,19 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   }, [selectedMonth, selectedYear]);
 
   const login = async () => {
-	try {
-	   const result = await signInWithPopup(auth, githubProvider);
-    
-       // CRITICAL FIX: Extract the token directly from the sign-in result
+    try {
+       const result = await signInWithPopup(auth, githubProvider);
+  
+       // Extract the token directly from the sign-in result
        const credential = GithubAuthProvider.credentialFromResult(result);
        const token = credential.accessToken;
-    
-       setAccessToken(token); 
+  
+       // Store token in sessionStorage for persistence
+       if (token) {
+         sessionStorage.setItem('github_access_token', token);
+         setAccessToken(token);
+         console.log('Token saved to sessionStorage');
+       }
 
      } catch (error) {
        console.error('Firebase GitHub sign-in error:', error.message);
@@ -120,16 +136,20 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
    };
 
   const logout = () => {
+    // Clear session storage BEFORE signing out
+    sessionStorage.removeItem('github_access_token');
+    sessionStorage.removeItem('github_user');
+    sessionStorage.removeItem('oauth_state');
+  
     signOut(auth).then(() => {
       console.log('User signed out successfully.');
+      setAccessToken(null);
+      setUser(null);
+      setIsAuthenticated(false);
     }).catch((error) => {
       console.error('Sign-out error:', error.message);
       alert('Sign-out failed: ' + error.message);
     });
-    // Clear old session storage items just in case
-    sessionStorage.removeItem('github_access_token');
-    sessionStorage.removeItem('github_user');
-    sessionStorage.removeItem('oauth_state');
   };
 
   // Helper function to save data using OAuth token
