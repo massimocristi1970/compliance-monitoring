@@ -62,10 +62,11 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Get provider data for user details (not for the token)
+        // Get provider data for user details (keep this for user data)
         const lastSignInProvider = firebaseUser.providerData.find(
           p => p.providerId === GithubAuthProvider.PROVIDER_ID
         );
+        // const token = lastSignInProvider?.accessToken; <-- REMOVE THIS LINE
 
         // Map Firebase user data to the existing user object structure
         const userData = {
@@ -74,13 +75,14 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
           avatar_url: firebaseUser.photoURL,
         };
 
-        // NOTE: setAccessToken is NOT called here anymore.
+        // setAccessToken(token); <-- REMOVE THIS LINE
         setUser(userData);
         setIsAuthenticated(true);
 
-        // Refresh the data when the user signs in
-        loadComplianceData();  
-        loadSummaryData();
+       // If this is the AdminPanel, run the specific loadData function
+        if (typeof loadData === 'function') {
+          loadData();
+        }
 
       } else {
         // User is signed out
@@ -90,6 +92,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
       }
     });
 
+    // Cleanup listener on component unmount
     return () => unsubscribe();
   }, []);
 
@@ -103,21 +106,20 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   }, [selectedMonth, selectedYear]);
 
   const login = async () => {
-    try {
-      // 1. Capture the result of the sign-in
-      const result = await signInWithPopup(auth, githubProvider);
-    
-      // 2. Extract the GitHub Access Token from the result
-      const credential = GithubAuthProvider.credentialFromResult(result);
-      const token = credential.accessToken;
-    
-      // 3. Set the accessToken state immediately
-      setAccessToken(token); 
+	try {
+	  const result = await signInWithPopup(auth, githubProvider);
 
-    } catch (error) {
-      console.error('Firebase GitHub sign-in error:', error.message);
-      alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
-    }
+	  // CRITICAL FIX: Extract the token directly from the sign-in result
+	  const credential = GithubAuthProvider.credentialFromResult(result);
+	  const token = credential.accessToken;
+
+	  // Set the token state immediately
+	  setAccessToken(token); 
+
+	} catch (error) {
+	  console.error('Firebase GitHub sign-in error:', error.message);
+	  alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
+	}
   };
 
   const logout = () => {
