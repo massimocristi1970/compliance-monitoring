@@ -66,8 +66,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         const lastSignInProvider = firebaseUser.providerData.find(
           p => p.providerId === GithubAuthProvider.PROVIDER_ID
         );
-        // const token = lastSignInProvider?.accessToken; <-- REMOVE THIS LINE
-
+        
         // Map Firebase user data to the existing user object structure
         const userData = {
           login: lastSignInProvider?.screenName || firebaseUser.displayName,
@@ -75,7 +74,6 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
           avatar_url: firebaseUser.photoURL,
         };
 
-        // setAccessToken(token); <-- REMOVE THIS LINE
         setUser(userData);
         setIsAuthenticated(true);
 
@@ -106,20 +104,23 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   }, [selectedMonth, selectedYear]);
 
   const login = async () => {
-	try {
-	  const result = await signInWithPopup(auth, githubProvider);
+    try {
+      // 1. Initiate sign-in and wait for the result
+      const result = await signInWithPopup(auth, githubProvider);
+    
+      // 2. CRITICAL FIX: Extract the credential object from the result
+      const credential = GithubAuthProvider.credentialFromResult(result);
+    
+      // 3. Capture the actual GitHub Access Token
+      const token = credential.accessToken;
+    
+      // 4. Set the state variable immediately for use
+      setAccessToken(token); 
 
-	  // CRITICAL FIX: Extract the token directly from the sign-in result
-	  const credential = GithubAuthProvider.credentialFromResult(result);
-	  const token = credential.accessToken;
-
-	  // Set the token state immediately
-	  setAccessToken(token); 
-
-	} catch (error) {
-	  console.error('Firebase GitHub sign-in error:', error.message);
-	  alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
-	}
+    } catch (error) {
+      console.error('Firebase GitHub sign-in error:', error.message);
+      alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
+    }
   };
 
   const logout = () => {
