@@ -29,6 +29,8 @@ const ComplianceDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
+  const [assignees, setAssignees] = useState([]);
+  const [businessAreas, setBusinessAreas] = useState([]);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -45,12 +47,10 @@ const ComplianceDashboard = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Get provider data for user details (keep this for user data)
         const lastSignInProvider = firebaseUser.providerData.find(
           p => p.providerId === GithubAuthProvider.PROVIDER_ID
         );
-        
-        // Map Firebase user data to the existing user object structure
+      
         const userData = {
           login: lastSignInProvider?.screenName || firebaseUser.displayName,
           name: firebaseUser.displayName,
@@ -58,34 +58,42 @@ const ComplianceDashboard = () => {
         };
 
         setUser(userData);
-        setIsAuthenticated(true);
-
-       // If this is the AdminPanel, run the specific loadData function
-        if (typeof loadData === 'function') {
-          loadData();
+      
+        // Retrieve token from sessionStorage
+        const storedToken = sessionStorage.getItem('github_access_token');
+        if (storedToken) {
+          setAccessToken(storedToken);
+          setIsAuthenticated(true);
+          console.log('Token retrieved from sessionStorage');
+        } else {
+          setIsAuthenticated(false);
+          console.warn('User authenticated but no token found. Please login again.');
         }
 
       } else {
-        // User is signed out
         setAccessToken(null);
         setUser(null);
         setIsAuthenticated(false);
       }
     });
 
-    // Cleanup listener on component unmount
     return () => unsubscribe();
   }, []);
 
   const login = async () => {
-	try {
-	   const result = await signInWithPopup(auth, githubProvider);
-    
-       // CRITICAL FIX: Extract the token directly from the sign-in result
+    try {
+       const result = await signInWithPopup(auth, githubProvider);
+  
+       // Extract the token directly from the sign-in result
        const credential = GithubAuthProvider.credentialFromResult(result);
        const token = credential.accessToken;
-    
-       setAccessToken(token); 
+  
+       // Store token in sessionStorage for persistence
+       if (token) {
+         sessionStorage.setItem('github_access_token', token);
+         setAccessToken(token);
+         console.log('Token saved to sessionStorage');
+       }
 
      } catch (error) {
        console.error('Firebase GitHub sign-in error:', error.message);
@@ -94,21 +102,27 @@ const ComplianceDashboard = () => {
    };
 
   const logout = () => {
-    signOut(auth).then(() => {
-      console.log('User signed out successfully.');
-    }).catch((error) => {
-      console.error('Sign-out error:', error.message);
-      alert('Sign-out failed: ' + error.message);
-    });
-    sessionStorage.removeItem('github_access_token');
-    sessionStorage.removeItem('github_user');
-    sessionStorage.removeItem('oauth_state');
-  };
+     // Clear session storage BEFORE signing out
+     sessionStorage.removeItem('github_access_token');
+     sessionStorage.removeItem('github_user');
+     sessionStorage.removeItem('oauth_state');
+  
+     signOut(auth).then(() => {
+       console.log('User signed out successfully.');
+       setAccessToken(null);
+       setUser(null);
+       setIsAuthenticated(false);
+     }).catch((error) => {
+       console.error('Sign-out error:', error.message);
+       alert('Sign-out failed: ' + error.message);
+     });
+   };
 
   const loadComplianceData = async () => {
     try {
       setLoading(true);
-      
+    
+      // Load compliance checks from GitHub Issues
       const issuesData = await loadFromGitHubIssues('Compliance Data');
       if (issuesData && Array.isArray(issuesData)) {
         setComplianceData(issuesData);
@@ -116,7 +130,7 @@ const ComplianceDashboard = () => {
         setError(null);
       } else {
         const response = await fetch('./data/compliance-data.json');
-        
+      
         if (response.ok) {
           const data = await response.json();
           setComplianceData(data);
@@ -128,6 +142,25 @@ const ComplianceDashboard = () => {
           setError('Using sample data - authenticate to access live data');
         }
       }
+
+      // Load admin configuration (assignees and business areas) from GitHub Issues
+      const adminConfig = await loadFromGitHubIssues('Admin Configuration');
+      if (adminConfig) {
+        console.log('📋 Loaded admin configuration from GitHub Issues');
+      
+      // Update assignees if they exist in admin config
+      if (adminConfig.assignees && Array.isArray(adminConfig.assignees)) {
+        setAssignees(adminConfig.assignees);
+        console.log(`👥 Loaded ${adminConfig.assignees.length} assignees`);
+      }
+
+      // Update business areas if they exist in admin config
+      if (adminConfig.businessAreas && Array.isArray(adminConfig.businessAreas)) {
+        setBusinessAreas(adminConfig.businessAreas);
+        console.log(`🏢 Loaded ${adminConfig.businessAreas.length} business areas`);
+      }
+      }
+    
     } catch (err) {
       console.warn('⚠️  Could not load data, using sample data:', err.message);
       setComplianceData(getSampleData());
