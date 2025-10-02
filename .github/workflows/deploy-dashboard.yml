@@ -30,10 +30,15 @@ jobs:
       - name: Install dependencies
         run: npm install
         working-directory: dashboard
+        
+      - name: Generate cache-busting timestamp
+        run: echo "VITE_BUILD_TIME=$(date +%s)" >> $GITHUB_ENV  
       
       - name: Build dashboard
         run: npm run build
         working-directory: dashboard
+        env:
+          VITE_BUILD_TIME: ${{ env.VITE_BUILD_TIME }}
               
       - name: Setup Pages
         uses: actions/configure-pages@v4
