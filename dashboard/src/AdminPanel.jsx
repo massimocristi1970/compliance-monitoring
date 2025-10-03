@@ -80,7 +80,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         const lastSignInProvider = firebaseUser.providerData.find(
           p => p.providerId === GithubAuthProvider.PROVIDER_ID
         );
-
+      
         // Map Firebase user data to the existing user object structure
         const userData = {
           login: lastSignInProvider?.screenName || firebaseUser.displayName,
@@ -89,31 +89,17 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         };
 
         setUser(userData);
-
-        // ✅ Try to retrieve token from Firebase first
-        let token;
-        try {
-          const credential = await firebaseUser.getIdTokenResult(false);
-          // Note: this is Firebase’s own token (not GitHub’s personal access token).
-          // We’ll still fallback to sessionStorage for GitHub access.
-          token = sessionStorage.getItem('github_access_token');
-        } catch (err) {
-          console.warn("Could not get Firebase credential token:", err);
-        }
-
-        // ✅ Fall back to sessionStorage if no token set yet
-        if (!token) {
-          token = sessionStorage.getItem('github_access_token');
-        }
-
-        if (token) {
-          setAccessToken(token);
+      
+        // Retrieve token from sessionStorage
+        const storedToken = sessionStorage.getItem('github_access_token');
+        if (storedToken) {
+          setAccessToken(storedToken);
           setIsAuthenticated(true);
-          console.log('Token retrieved successfully');
+          console.log('Token retrieved from sessionStorage');
         } else {
-          setAccessToken(null);
+          // No token found - user needs to re-authenticate
           setIsAuthenticated(false);
-          console.warn('User authenticated but no GitHub token found. Please login again.');
+          console.warn('User authenticated but no token found. Please login again.');
         }
 
         // If this is the AdminPanel, run the specific loadData function
@@ -124,7 +110,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
       } else {
         // User is signed out
         setAccessToken(null);
-       setUser(null);
+        setUser(null);
         setIsAuthenticated(false);
       }
     });
