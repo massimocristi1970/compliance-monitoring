@@ -32,6 +32,20 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   const [editingItem, setEditingItem] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // Check Templates state
+  const [checkTemplates, setCheckTemplates] = useState([]);
+  const [showAddTemplate, setShowAddTemplate] = useState(false);
+  const [newTemplate, setNewTemplate] = useState({
+    name: '',
+    businessArea: '',
+    description: '',
+    regulations: '',
+    frequency: 'Monthly',
+    startDate: '',
+    records: 'Document',
+    responsibility: ''
+  });
+
   // Form data
   const [newAssignee, setNewAssignee] = useState({ name: '', email: '', role: '', githubUsername: '' });
   const [newBusinessArea, setNewBusinessArea] = useState({ name: '', description: '', regulations: '' });
@@ -322,6 +336,13 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
           console.log('Admin config not found, using defaults');
         }
       }
+	  
+	 // Load check templates
+      const templates = await loadFromGitHubIssues('Check Templates');
+      if (templates && Array.isArray(templates)) {
+        setCheckTemplates(templates);
+        console.log(`📋 Loaded ${templates.length} check templates`);
+      } 
     } catch (error) {
       console.error('Error loading data:', error);
     }
@@ -408,6 +429,31 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
         year: selectedYear
       });
       setShowAddCheck(false);
+    }
+  };
+  
+  const handleAddTemplate = () => {
+    if (newTemplate.name.trim() && newTemplate.businessArea) {
+      const templateId = Date.now();
+      const template = {
+        ...newTemplate,
+        id: templateId,
+        createdDate: new Date().toISOString(),
+        createdBy: user ? `${user.name || user.login}` : 'Admin'
+      };
+      
+      setCheckTemplates([...checkTemplates, template]);
+      setNewTemplate({
+        name: '',
+        businessArea: '',
+        description: '',
+        regulations: '',
+        frequency: 'Monthly',
+        startDate: '',
+        records: 'Document',
+        responsibility: ''
+      });
+      setShowAddTemplate(false);
     }
   };
 
@@ -497,8 +543,11 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
       console.log('Saving admin configuration...');
       await saveToGitHubIssues('Admin Configuration', adminConfig, ['config']);
 
+      console.log('Saving check templates...');
+      await saveToGitHubIssues('Check Templates', checkTemplates, ['templates']);
+
       setSaving(false);
-      alert(`Changes saved successfully to GitHub Issues by ${user.name || user.login}!\n\nData stored in repository issues:\n• Compliance Data\n• Summary Data\n• Admin Configuration\n\nOther users will see these changes immediately.`);
+      alert(`Changes saved successfully to GitHub Issues by ${user.name || user.login}!\n\nData stored in repository issues:\n• Compliance Data\n• Summary Data\n• Admin Configuration\n• Check Templates\n\nOther users will see these changes immediately.`);
       
       if (onDataUpdate) {
         onDataUpdate({
@@ -585,57 +634,109 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   };
 
   const generateChecksForSpecificMonth = () => {
+    if (checkTemplates.length === 0) {
+      alert('No check templates found. Please create templates in the "Check Templates" tab first.');
+      return;
+    }
+
     if (assignees.length === 0 || businessAreas.length === 0) {
       alert('Please add assignees and business areas first.');
       return;
     }
 
-    const actions = [
-      'Monthly compliance review',
-      'Quarterly risk assessment',
-      'Documentation audit',
-      'Customer file sampling',
-      'Training records review',
-      'System access review',
-      'Regulatory filing review',
-      'Policy compliance check'
-    ];
+    // Calculate which templates are due for the selected month
+    const dueTemplates = checkTemplates.filter(template => {
+      if (!template.startDate) return false; // Skip templates without start date
+      
+      const startDate = new Date(template.startDate);
+      const targetDate = new Date(selectedYear, selectedMonth - 1, 1);
+      
+      // Check if target month is before start date
+      if (targetDate < startDate) return false;
+      
+      switch (template.frequency) {
+        case 'Monthly':
+          return true; // Always due
+          
+        case 'Quarterly':
+          // Check if months match (every 3 months from start)
+          const monthsSinceStart = (targetDate.getFullYear() - startDate.getFullYear()) * 12 + 
+                                   (targetDate.getMonth() - startDate.getMonth());
+          return monthsSinceStart >= 0 && monthsSinceStart % 3 === 0;
+          
+        case 'Annually':
+          // Check if same month and year >= start year
+          return targetDate.getMonth() === startDate.getMonth() && 
+                 targetDate.getFullYear() >= startDate.getFullYear();
+          
+        case 'Weekly':
+        case 'Daily':
+          return true; // Generate for current month
+          
+        case 'Event-driven':
+          return false; // Manual only
+          
+        default:
+          return false;
+      }
+    });
 
-    const numChecks = parseInt(prompt('How many checks would you like to generate for ' + months[selectedMonth - 1] + ' ' + selectedYear + '?', '5') || '5');
-    
+    if (dueTemplates.length === 0) {
+      alert(`No templates are due for ${months[selectedMonth - 1]} ${selectedYear} based on their frequencies and start dates.`);
+      return;
+    }
+
+    // Check for duplicates and create checks
     let newChecks = [];
+    let skippedCount = 0;
     let checkRef = Math.max(...complianceChecks.map(c => c.checkRef || 0)) + 1;
 
-    for (let i = 0; i < numChecks; i++) {
-      const assignee = assignees[Math.floor(Math.random() * assignees.length)];
-      const businessArea = businessAreas[Math.floor(Math.random() * businessAreas.length)];
-      const action = actions[Math.floor(Math.random() * actions.length)];
-      const frequency = frequencies[Math.floor(Math.random() * frequencies.length)];
-      
+    dueTemplates.forEach(template => {
+      // Check if check already exists (duplicate detection)
+      const exists = complianceChecks.some(check => 
+        check.businessArea === template.businessArea &&
+        check.action === template.description &&
+        check.monthNumber === selectedMonth &&
+        check.year === selectedYear
+      );
+
+      if (exists) {
+        skippedCount++;
+        return; // Skip this template
+      }
+
+      // Create new check from template
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const dueDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${lastDay}`;
+
       newChecks.push({
         checkRef: checkRef++,
-        action: `${action} - ${businessArea.name.split('(')[0].trim()}`,
-        businessArea: businessArea.name,
-        frequency,
-        responsibility: assignee.name,
-        records: ['Document', 'Review', 'Data Review', 'Report'][Math.floor(Math.random() * 4)],
-        number: Math.floor(Math.random() * 50) + 5,
+        action: template.description,
+        businessArea: template.businessArea,
+        frequency: template.frequency,
+        responsibility: template.responsibility || assignees[0].name,
+        records: template.records,
+        number: '',
         status: 'pending',
-        priority: 'Medium',
-        dueDate: `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}`,
+        priority: template.regulations,
+        dueDate: dueDate,
         year: selectedYear,
         month: months[selectedMonth - 1].toLowerCase(),
         monthNumber: selectedMonth,
         uploadDate: new Date().toISOString(),
-        uploadedBy: user ? `${user.name || user.login} (OAuth)` : 'Admin',
+        uploadedBy: user ? `${user.name || user.login} (Generated from Template)` : 'System Generated',
         files: [],
-        comments: '',
-        completedDate: undefined
+        comments: `Generated from template: ${template.name}`,
+        templateId: template.id
       });
-    }
+    });
 
-    setComplianceChecks([...complianceChecks, ...newChecks]);
-    alert(`Generated ${numChecks} compliance checks for ${months[selectedMonth - 1]} ${selectedYear}!`);
+    if (newChecks.length > 0) {
+      setComplianceChecks([...complianceChecks, ...newChecks]);
+      alert(`Generated ${newChecks.length} compliance check(s) for ${months[selectedMonth - 1]} ${selectedYear}.\n${skippedCount > 0 ? `Skipped ${skippedCount} duplicate(s).` : ''}\n\nRemember to click "Save All Changes" to persist these checks.`);
+    } else {
+      alert(`All checks for ${months[selectedMonth - 1]} ${selectedYear} already exist. No new checks created.`);
+    }
   };
 
   const TabButton = ({ id, label, icon: Icon }) => (
@@ -806,6 +907,7 @@ return (
             <TabButton id="assignees" label="Assignees" icon={Users} />
             <TabButton id="business-areas" label="Business Areas" icon={Building2} />
             <TabButton id="checks" label="Compliance Checks" icon={FileText} />
+            <TabButton id="templates" label="Check Templates" icon={ListChecks} />
             <TabButton id="bulk" label="Bulk Operations" icon={Settings} />
           </div>
         </div>
@@ -1218,6 +1320,147 @@ return (
                 </tbody>
               </table>
               {complianceChecks.length === 0 && <p className="text-center p-4 text-gray-500">No compliance checks found.</p>}
+            </div>
+          </div>
+        )}
+
+        {/* Check Templates Tab */}
+        {activeTab === 'templates' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Manage Check Templates ({checkTemplates.length})</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Define template checks with frequencies. Use "Generate" in Bulk Operations to create actual checks from these templates.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddTemplate(true)}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Template
+              </button>
+            </div>
+
+            {/* Add Template Form */}
+            {showAddTemplate && (
+              <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
+                <h4 className="font-medium mb-4">Add New Check Template</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <input
+                    type="text"
+                    placeholder="Template Name (e.g., Quarterly Risk Review)"
+                    value={newTemplate.name}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                    className="border border-gray-300 rounded-md p-2 text-sm col-span-1"
+                    required
+                  />
+                  <select
+                    value={newTemplate.businessArea}
+                    onChange={(e) => {
+                      const selectedArea = businessAreas.find(area => area.name === e.target.value);
+                      setNewTemplate({ 
+                        ...newTemplate, 
+                        businessArea: e.target.value,
+                        description: selectedArea?.description || '',
+                        regulations: selectedArea?.regulations || ''
+                      });
+                    }}
+                    className="border border-gray-300 rounded-md p-2 text-sm"
+                    required
+                  >
+                    <option value="">Select Business Area</option>
+                    {businessAreas.map(area => (
+                      <option key={area.name} value={area.name}>{area.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={newTemplate.responsibility}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, responsibility: e.target.value })}
+                    className="border border-gray-300 rounded-md p-2 text-sm"
+                  >
+                    <option value="">Assign Later (Optional)</option>
+                    {assignees.map(a => (
+                      <option key={a.name} value={a.name}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-4 gap-4 mt-4">
+                  <select
+                    value={newTemplate.frequency}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, frequency: e.target.value })}
+                    className="border border-gray-300 rounded-md p-2 text-sm"
+                  >
+                    {frequencies.map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="date"
+                    placeholder="Start Date"
+                    value={newTemplate.startDate}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, startDate: e.target.value })}
+                    className="border border-gray-300 rounded-md p-2 text-sm"
+                    required
+                  />
+                  <select
+                    value={newTemplate.records}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, records: e.target.value })}
+                    className="border border-gray-300 rounded-md p-2 text-sm"
+                  >
+                    <option value="Document">Document</option>
+                    <option value="Review">Review</option>
+                    <option value="Data Review">Data Review</option>
+                    <option value="Report">Report</option>
+                  </select>
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={handleAddTemplate} className="flex items-center gap-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm">
+                      <Plus className="w-4 h-4" /> Save Template
+                    </button>
+                    <button onClick={() => setShowAddTemplate(false)} className="flex items-center gap-1 bg-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-400 text-sm">
+                      <X className="w-4 h-4" /> Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Templates List */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Template Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business Area</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Frequency</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsibility</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {checkTemplates.map((template, index) => (
+                    <tr key={template.id || index}>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{template.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{template.businessArea}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{template.frequency}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{template.startDate || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{template.responsibility || 'Unassigned'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button 
+                          onClick={() => handleDeleteTemplate(index)}
+                          className="text-red-600 hover:text-red-900 p-1"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4 inline" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {checkTemplates.length === 0 && <p className="text-center p-4 text-gray-500">No check templates added yet.</p>}
             </div>
           </div>
         )}
