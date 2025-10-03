@@ -790,78 +790,77 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   );
 
   // Admin whitelist
-  const AUTHORIZED_ADMINS = ['massimocristi1970']; // Add your GitHub username
+const AUTHORIZED_ADMINS = ['massimocristi1970']; // GitHub login usernames
 
-  // Authentication Gate
-  if (!isAuthenticated) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
-          <div className="text-center">
-            <Settings className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin Panel</h2>
-            <p className="text-gray-600 mb-6">
-              Authentication required to manage compliance data safely.
-            </p>
-
-            <div className="space-y-4">
-              <button
-                onClick={login}
-                className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                <LogIn className="w-5 h-5" />
-                Login with GitHub
-              </button>
-
-              <button
-                onClick={onClose}
-                className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
-              >
-                Cancel
-              </button>
-            </div>
+// --- Authentication check ---
+if (!isAuthenticated) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
+        <div className="text-center">
+          <Settings className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Login Required</h2>
+          <p className="text-gray-600 mb-6">
+            Please log in with GitHub to continue.
+          </p>
+          <div className="space-y-4">
+            <button
+              onClick={login}
+              className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              <LogIn className="w-5 h-5" />
+              Login with GitHub
+            </button>
+            <button
+              onClick={onClose}
+              className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // Authorization check - only allowed users can access admin features
-  if (!AUTHORIZED_ADMINS.includes(user?.login)) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
-          <div className="text-center">
-            <Settings className="w-16 h-16 text-red-600 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-            <p className="text-gray-600 mb-4">
-              You are logged in as <strong>{user?.login}</strong>, but you don't have administrator permissions.
-            </p>
-            <p className="text-sm text-gray-500 mb-6">
-              Contact the system administrator if you need admin access.
-            </p>
+// --- Authorization branching ---
+const isAdmin = AUTHORIZED_ADMINS.includes(user?.login);
 
-            <div className="space-y-4">
-              <button
-                onClick={logout}
-                className="w-full flex items-center justify-center gap-3 bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                <LogOut className="w-5 h-5" />
-                Logout
-              </button>
+if (isAdmin) {
+  // ✅ Admin Panel for whitelisted admins
+  return (
+    <div className="p-6">
+      <h2 className="text-2xl font-bold mb-4">Admin Panel</h2>
+      <p className="mb-4">Welcome, <strong>{user?.login}</strong>. You have full administrator access.</p>
+      {/* Place all your existing admin functionality here */}
+      <button
+        onClick={logout}
+        className="mt-4 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+      >
+        Logout
+      </button>
+    </div>
+  );
+}
 
-              <button
-                onClick={onClose}
-                className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+// ✅ Default view for authenticated non-admin users (Dashboard / Uploads)
+return (
+  <div className="p-6">
+    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
+    <p className="mb-4">
+      You are logged in as <strong>{user?.login}</strong>.  
+      You can view the dashboard, update statuses, and upload files.
+    </p>
+    {/* Place your existing dashboard / upload components here */}
+    <button
+      onClick={logout}
+      className="mt-4 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+    >
+      Logout
+    </button>
+  </div>
+);
 
 return (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
