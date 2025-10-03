@@ -130,24 +130,41 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
 
   const login = async () => {
     try {
-       const result = await signInWithPopup(auth, githubProvider);
-  
-       // Extract the token directly from the sign-in result
-       const credential = GithubAuthProvider.credentialFromResult(result);
-       const token = credential.accessToken;
-  
-       // Store token in sessionStorage for persistence
-       if (token) {
-         sessionStorage.setItem('github_access_token', token);
-         setAccessToken(token);
-         console.log('Token saved to sessionStorage');
-       }
+      const result = await signInWithPopup(auth, githubProvider);
+      const credential = GithubAuthProvider.credentialFromResult(result);
+      const token = credential.accessToken;
 
-     } catch (error) {
-       console.error('Firebase GitHub sign-in error:', error.message);
-       alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
-     }
-   };
+      // Parse raw GitHub profile
+      const githubProfile = result._tokenResponse?.rawUserInfo
+        ? JSON.parse(result._tokenResponse.rawUserInfo)
+        : null;
+
+      if (githubProfile?.login) {
+        const userData = {
+          login: githubProfile.login,  // ✅ this will be "massimocristi1970"
+          name: githubProfile.name || githubProfile.login,
+          avatar_url: githubProfile.avatar_url,
+        };
+        setUser(userData);
+      sessionStorage.setItem('github_user', githubProfile.login);
+      }
+
+      if (token) {
+        sessionStorage.setItem('github_access_token', token);
+        setAccessToken(token);
+        setIsAuthenticated(true); // ✅ ensure state syncs immediately
+        console.log('Token saved to sessionStorage');
+      }
+    } catch (error) {
+      console.error('Firebase GitHub sign-in error:', error.message);
+      alert(
+        'Authentication failed: ' +
+          (error.message.includes('popup')
+            ? 'Popup closed or blocked.'
+            : error.message)
+      );
+    }
+  };
 
   const logout = () => {
     // Clear session storage BEFORE signing out
@@ -790,77 +807,66 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   );
 
   // Admin whitelist
-const AUTHORIZED_ADMINS = ['massimocristi1970']; // GitHub login usernames
+  const AUTHORIZED_ADMINS = ['massimocristi1970']; // GitHub login usernames
+  const isAdmin = AUTHORIZED_ADMINS.includes(user?.login);
 
-// --- Authentication check ---
-if (!isAuthenticated) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
-        <div className="text-center">
-          <Settings className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Login Required</h2>
-          <p className="text-gray-600 mb-6">
-            Please log in with GitHub to continue.
-          </p>
-          <div className="space-y-4">
-            <button
-              onClick={login}
-              className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
-            >
-              <LogIn className="w-5 h-5" />
-              Login with GitHub
-            </button>
-            <button
-              onClick={onClose}
-              className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
-            >
-              Cancel
-            </button>
+  // --- Authentication + Authorization branch ---
+  if (!isAuthenticated) {
+    // Not logged in → show login modal
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
+          <div className="text-center">
+            <Settings className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Login Required</h2>
+            <p className="text-gray-600 mb-6">Please log in with GitHub to continue.</p>
+            <div className="space-y-4">
+              <button
+                onClick={login}
+                className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <LogIn className="w-5 h-5" />
+                Login with GitHub
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-// --- Authorization branching ---
-const isAdmin = AUTHORIZED_ADMINS.includes(user?.login);
+  // If authenticated but not an admin → dashboard only
+  if (!isAdmin) {
+    return (
+      <div className="p-6">
+        <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
+        <p className="mb-4">
+          You are logged in as <strong>{user?.login}</strong>.  
+          You can view the dashboard, update statuses, and upload files.
+        </p>
+        {/* ✅ You can render your dashboard/upload components here */}
+        <button
+          onClick={logout}
+          className="mt-4 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+        >
+          Logout
+        </button>
+      </div>
+    );
+  }
 
-if (isAdmin) {
-  // ✅ Admin Panel for whitelisted admins
+  // ✅ If authenticated and admin → render full Admin Panel (your big JSX below)
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">Admin Panel</h2>
-      <p className="mb-4">Welcome, <strong>{user?.login}</strong>. You have full administrator access.</p>
-      {/* Place all your existing admin functionality here */}
-      <button
-        onClick={logout}
-        className="mt-4 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-      >
-        Logout
-      </button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      {/* ... all your big AdminPanel JSX (tabs, forms, save, bulk ops, etc.) ... */}
     </div>
   );
-}
-
-// ✅ Default view for authenticated non-admin users (Dashboard / Uploads)
-return (
-  <div className="p-6">
-    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
-    <p className="mb-4">
-      You are logged in as <strong>{user?.login}</strong>.  
-      You can view the dashboard, update statuses, and upload files.
-    </p>
-    {/* Place your existing dashboard / upload components here */}
-    <button
-      onClick={logout}
-      className="mt-4 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-    >
-      Logout
-    </button>
-  </div>
-);
 
 return (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
