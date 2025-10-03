@@ -789,6 +789,9 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
     </button>
   );
 
+  // Admin whitelist
+  const AUTHORIZED_ADMINS = ['massimocristi1970']; // Add your GitHub username
+
   // Authentication Gate
   if (!isAuthenticated) {
     return (
@@ -800,7 +803,7 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
             <p className="text-gray-600 mb-6">
               Authentication required to manage compliance data safely.
             </p>
-            
+
             <div className="space-y-4">
               <button
                 onClick={login}
@@ -815,6 +818,43 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
                 className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Authorization check - only allowed users can access admin features
+  if (!AUTHORIZED_ADMINS.includes(user?.login)) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
+          <div className="text-center">
+            <Settings className="w-16 h-16 text-red-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+            <p className="text-gray-600 mb-4">
+              You are logged in as <strong>{user?.login}</strong>, but you don't have administrator permissions.
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              Contact the system administrator if you need admin access.
+            </p>
+
+            <div className="space-y-4">
+              <button
+                onClick={logout}
+                className="w-full flex items-center justify-center gap-3 bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                Logout
+              </button>
+
+              <button
+                onClick={onClose}
+                className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
+              >
+                Close
               </button>
             </div>
           </div>
