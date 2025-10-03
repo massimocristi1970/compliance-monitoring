@@ -567,70 +567,106 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   };
 
   const generateBulkChecks = () => {
+    if (checkTemplates.length === 0) {
+      alert('No check templates found. Please create templates in the "Check Templates" tab first.');
+      return;
+    }
+
     if (assignees.length === 0 || businessAreas.length === 0) {
       alert('Please add assignees and business areas first.');
       return;
     }
 
-    const actions = [
-      'Monthly compliance review',
-      'Quarterly risk assessment',
-      'Annual policy update',
-      'Documentation audit',
-      'Customer file sampling',
-      'Training records review',
-      'System access review',
-      'Regulatory filing',
-      'Incident reporting review',
-      'Data quality check'
-    ];
+    if (!window.confirm('This will generate checks for ALL 12 months of 2025 from your templates. Continue?')) {
+      return;
+    }
 
-    let newChecks = [];
+    let allNewChecks = [];
     let checkRef = Math.max(...complianceChecks.map(c => c.checkRef || 0)) + 1;
+    const year = 2025;
 
-    const monthsToGenerate = activeTab === 'bulk' && document.querySelector('#bulk-all-months')?.checked 
-      ? months.map((name, index) => ({ name: name.toLowerCase(), index: index + 1 }))
-      : [{ name: months[selectedMonth - 1].toLowerCase(), index: selectedMonth }];
-
-    monthsToGenerate.forEach(({ name: month, index: monthIndex }) => {
-      const numChecks = Math.floor(Math.random() * 3) + 3;
+    // Loop through all 12 months
+    for (let monthIndex = 1; monthIndex <= 12; monthIndex++) {
+      const monthName = months[monthIndex - 1].toLowerCase();
       
-      for (let i = 0; i < numChecks; i++) {
-        const assignee = assignees[Math.floor(Math.random() * assignees.length)];
-        const businessArea = businessAreas[Math.floor(Math.random() * businessAreas.length)];
-        const action = actions[Math.floor(Math.random() * actions.length)];
-        const frequency = frequencies[Math.floor(Math.random() * frequencies.length)];
+      // Calculate which templates are due for this month
+      const dueTemplates = checkTemplates.filter(template => {
+        if (!template.startDate) return false;
         
-        const statuses = ['pending', 'completed', 'overdue', 'due_soon'];
-        const status = statuses[Math.floor(Math.random() * statuses.length)];
+        const startDate = new Date(template.startDate);
+        const targetDate = new Date(year, monthIndex - 1, 1);
         
-        const yearToUse = monthsToGenerate.length === 1 ? selectedYear : 2025;
+        if (targetDate < startDate) return false;
         
-        newChecks.push({
-          checkRef: checkRef++,
-          action: `${action} - ${businessArea.name.split('(')[0].trim()}`,
-          businessArea: businessArea.name,
-          frequency,
-          responsibility: assignee.name,
-          records: ['Document', 'Review', 'Data Review', 'Report'][Math.floor(Math.random() * 4)],
-          number: Math.floor(Math.random() * 50) + 5,
-          status,
-          priority: ['High', 'Medium', 'Low'][Math.floor(Math.random() * 3)],
-          dueDate: `${yearToUse}-${monthIndex.toString().padStart(2, '0')}-${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}`,
-          year: yearToUse,
-          month,
-          monthNumber: monthIndex,
-          uploadDate: new Date().toISOString(),
-          uploadedBy: user ? `${user.name || user.login} (Bulk Import via OAuth)` : 'Admin Bulk Import',
-          files: status === 'completed' ? [`${month}_${checkRef}_evidence.pdf`] : [],
-          comments: status === 'completed' ? `Bulk generated ${month} check completed.` : '',
-          completedDate: status === 'completed' ? `${yearToUse}-${monthIndex.toString().padStart(2, '0')}-15` : undefined
-        });
-      }
-    });
+        switch (template.frequency) {
+          case 'Monthly':
+            return true;
+            
+          case 'Quarterly':
+            const monthsSinceStart = (targetDate.getFullYear() - startDate.getFullYear()) * 12 + 
+                                     (targetDate.getMonth() - startDate.getMonth());
+            return monthsSinceStart >= 0 && monthsSinceStart % 3 === 0;
+            
+          case 'Annually':
+            return targetDate.getMonth() === startDate.getMonth() && 
+                   targetDate.getFullYear() >= startDate.getFullYear();
+            
+          case 'Weekly':
+          case 'Daily':
+            return true;
+            
+          case 'Event-driven':
+            return false;
+            
+          default:
+            return false;
+        }
+      });
 
-    setComplianceChecks([...complianceChecks, ...newChecks]);
-    alert(`Generated ${newChecks.length} compliance checks for ${monthsToGenerate.length === 1 ? months[selectedMonth - 1] + ' ' + selectedYear : 'all months'}!`);
+      // Create checks for this month
+      dueTemplates.forEach(template => {
+        // Check if check already exists
+        const exists = complianceChecks.some(check => 
+          check.businessArea === template.businessArea &&
+          check.action === template.description &&
+          check.monthNumber === monthIndex &&
+          check.year === year
+        );
+
+        if (!exists) {
+          const lastDay = new Date(year, monthIndex, 0).getDate();
+          const dueDate = `${year}-${monthIndex.toString().padStart(2, '0')}-${lastDay}`;
+
+          allNewChecks.push({
+            checkRef: checkRef++,
+            action: template.description,
+            businessArea: template.businessArea,
+            frequency: template.frequency,
+            responsibility: template.responsibility || assignees[0].name,
+            records: template.records,
+            number: '',
+            status: 'pending',
+            priority: template.regulations,
+            dueDate: dueDate,
+            year: year,
+            month: monthName,
+            monthNumber: monthIndex,
+            uploadDate: new Date().toISOString(),
+            uploadedBy: user ? `${user.name || user.login} (Full Year Generation)` : 'System Generated',
+            files: [],
+            comments: `Generated from template: ${template.name}`,
+            templateId: template.id
+          });
+        }
+      });
+    }
+
+    if (allNewChecks.length > 0) {
+      setComplianceChecks([...complianceChecks, ...allNewChecks]);
+      alert(`Generated ${allNewChecks.length} compliance checks across all months of 2025.\n\nRemember to click "Save All Changes" to persist these checks.`);
+    } else {
+      alert('All template-based checks for 2025 already exist. No new checks created.');
+    }
   };
 
   const generateChecksForSpecificMonth = () => {
@@ -1495,26 +1531,18 @@ return (
                   </div>
 
                   <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <h4 className="font-medium text-purple-800 mb-2">Option 2: Generate for a Full Year</h4>
-                    <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm text-purple-600">
-                            Generates random checks across all 12 months (Default year: **2025**)
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" id="bulk-all-months" className="w-4 h-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded" />
-                            <label htmlFor="bulk-all-months" className="text-sm font-medium text-purple-800">
-                                Overwrite Period Selection
-                            </label>
-                        </div>
-                    </div>
-                    <button
-                      onClick={generateBulkChecks}
-                      className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm"
-                    >
-                      <Zap className="w-4 h-4" />
-                      Generate Full Year Checks
-                    </button>
-                  </div>
+					<h4 className="font-medium text-purple-800 mb-2">Option 2: Generate Full Year from Templates</h4>
+					<p className="text-sm text-purple-600 mb-3">
+						Creates checks for all 12 months of 2025 from your templates based on their frequencies.
+					</p>
+					<button
+						onClick={generateBulkChecks}
+						className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm"
+					>
+						<Zap className="w-4 h-4" />
+						Generate Full Year from Templates
+					  </button>
+				  </div>
                 </div>
               </div>
             </div>
