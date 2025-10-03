@@ -1044,59 +1044,85 @@ return (
             
             {/* Add Check Form */}
             {showAddCheck && (
-                <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
-                    <h4 className="font-medium mb-4">Add New Check for {months[selectedMonth - 1]} {selectedYear}</h4>
-                    <div className="grid grid-cols-4 gap-4">
-                        <input
-                            type="text"
-                            placeholder="Action/Check Description"
-                            value={newCheck.action}
-                            onChange={(e) => setNewCheck({ ...newCheck, action: e.target.value })}
-                            className="border border-gray-300 rounded-md p-2 text-sm col-span-2"
-                            required
-                        />
-                        <select
-                            value={newCheck.businessArea}
-                            onChange={(e) => setNewCheck({ ...newCheck, businessArea: e.target.value })}
-                            className="border border-gray-300 rounded-md p-2 text-sm"
-                            required
-                        >
-                            <option value="">Select Business Area</option>
-                            {businessAreas.map(area => (
-                                <option key={area.name} value={area.name}>{area.name}</option>
-                            ))}
-                        </select>
-                        <select
-                            value={newCheck.responsibility}
-                            onChange={(e) => setNewCheck({ ...newCheck, responsibility: e.target.value })}
-                            className="border border-gray-300 rounded-md p-2 text-sm"
-                            required
-                        >
-                            <option value="">Select Responsibility</option>
-                            {assignees.map(a => (
-                                <option key={a.name} value={a.name}>{a.name}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="grid grid-cols-5 gap-4 mt-4">
-                        <select
-                            value={newCheck.frequency}
-                            onChange={(e) => setNewCheck({ ...newCheck, frequency: e.target.value })}
-                            className="border border-gray-300 rounded-md p-2 text-sm"
-                        >
-                            {frequencies.map(f => (
-                                <option key={f} value={f}>{f}</option>
-                            ))}
-                        </select>
-                        <select
-                            value={newCheck.priority}
-                            onChange={(e) => setNewCheck({ ...newCheck, priority: e.target.value })}
-                            className="border border-gray-300 rounded-md p-2 text-sm"
-                        >
-                            <option value="High">High Priority</option>
-                            <option value="Medium">Medium Priority</option>
-                            <option value="Low">Low Priority</option>
-                        </select>
+				<div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
+					<h4 className="font-medium mb-4">Add New Check for {months[selectedMonth - 1]} {selectedYear}</h4>
+					<div className="grid grid-cols-4 gap-4">
+						<select
+							value={newCheck.businessArea}
+							onChange={(e) => {
+								setNewCheck({ 
+									...newCheck, 
+									businessArea: e.target.value,
+									action: '',
+									priority: ''
+								});
+							}}
+							className="border border-gray-300 rounded-md p-2 text-sm"
+							required
+						>
+							<option value="">1. Select Business Area First</option>
+							{businessAreas.map(area => (
+								<option key={area.name} value={area.name}>{area.name}</option>
+							))}
+						</select>
+            
+						<select
+							value={newCheck.action}
+							onChange={(e) => setNewCheck({ ...newCheck, action: e.target.value })}
+							className="border border-gray-300 rounded-md p-2 text-sm col-span-2"
+							required
+							disabled={!newCheck.businessArea}
+						>
+							<option value="">2. Select Action/Description</option>
+							{newCheck.businessArea && businessAreas
+								.filter(area => area.name === newCheck.businessArea)
+								.map(area => (
+									<option key={area.description} value={area.description}>
+										{area.description}
+									</option>
+								))
+							}
+						</select>
+            
+						<select
+							value={newCheck.responsibility}
+							onChange={(e) => setNewCheck({ ...newCheck, responsibility: e.target.value })}
+							className="border border-gray-300 rounded-md p-2 text-sm"
+							required
+						>
+							<option value="">Select Responsibility</option>
+							{assignees.map(a => (
+								<option key={a.name} value={a.name}>{a.name}</option>
+							))}
+						</select>
+					</div>
+					<div className="grid grid-cols-5 gap-4 mt-4">
+						<select
+							value={newCheck.frequency}
+							onChange={(e) => setNewCheck({ ...newCheck, frequency: e.target.value })}
+							className="border border-gray-300 rounded-md p-2 text-sm"
+						>
+							{frequencies.map(f => (
+								<option key={f} value={f}>{f}</option>
+							))}
+						</select>
+            
+						<select
+							value={newCheck.priority}
+							onChange={(e) => setNewCheck({ ...newCheck, priority: e.target.value })}
+							className="border border-gray-300 rounded-md p-2 text-sm"
+							disabled={!newCheck.businessArea}
+						>
+							<option value="">Select Regulation Type</option>
+							{newCheck.businessArea && businessAreas
+								.filter(area => area.name === newCheck.businessArea)
+								.map(area => (
+									<option key={area.regulations} value={area.regulations}>
+										{area.regulations}
+									</option>
+								))
+							}
+						</select>
                         <select
                             value={newCheck.records}
                             onChange={(e) => setNewCheck({ ...newCheck, records: e.target.value })}
