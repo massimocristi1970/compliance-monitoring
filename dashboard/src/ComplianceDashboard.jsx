@@ -118,27 +118,63 @@ const ComplianceDashboard = () => {
      });
    };
 
-  const loadComplianceData = async () => {
+  const fixNullCheckRefs = (data) => {
+    const needsFix = data.some(check => !check.checkRef || check.checkRef === null);
+  
+    if (!needsFix) {
+      return data; // No fixes needed
+    }
+  
+    console.log('⚠️ Found checks with null checkRef, auto-fixing...');
+  
+    // Find the highest existing checkRef
+    let maxRef = Math.max(
+      0,
+      ...data.filter(check => check.checkRef).map(check => check.checkRef)
+    );
+  
+    // Assign new checkRefs to null entries
+    const fixedData = data.map((check) => {
+      if (!check.checkRef || check.checkRef === null) {
+        maxRef++;
+        console.log(`  Fixed check: "${check.action?.substring(0, 50)}..." -> checkRef: ${maxRef}`);
+        return { ...check, checkRef: maxRef };
+      }
+      return check;
+    });
+  
+    console.log(`✅ Auto-fixed ${data.filter(c => !c.checkRef).length} checks with proper checkRef values`);
+  
+    return fixedData;
+  };
+  
+   const loadComplianceData = async () => {
     try {
       setLoading(true);
     
       // Load compliance checks from GitHub Issues
       const issuesData = await loadFromGitHubIssues('Compliance Data');
       if (issuesData && Array.isArray(issuesData)) {
-        setComplianceData(issuesData);
-        console.log(`📊 Loaded ${issuesData.length} compliance checks from GitHub Issues`);
+        // Auto-fix null checkRefs
+        const fixedData = fixNullCheckRefs(issuesData);
+        setComplianceData(fixedData);
+        console.log(`📊 Loaded ${fixedData.length} compliance checks from GitHub Issues`);
         setError(null);
       } else {
         const response = await fetch('./data/compliance-data.json');
-      
+
         if (response.ok) {
           const data = await response.json();
-          setComplianceData(data);
-          console.log(`📊 Loaded ${data.length} compliance checks from JSON`);
+          // Auto-fix null checkRefs
+          const fixedData = fixNullCheckRefs(data);
+          setComplianceData(fixedData);
+          console.log(`📊 Loaded ${fixedData.length} compliance checks from JSON`);
           setError(null);
         } else {
           console.log('📄 Using sample data - no data source available');
-          setComplianceData(getSampleData());
+          const sampleData = getSampleData();
+          const fixedData = fixNullCheckRefs(sampleData);
+          setComplianceData(fixedData);
           setError('Using sample data - authenticate to access live data');
         }
       }
