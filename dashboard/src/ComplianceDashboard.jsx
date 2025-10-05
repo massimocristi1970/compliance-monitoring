@@ -916,15 +916,32 @@ const handleFileUpload = async (checkRef, files) => {
                     value={selectedCheck.status}
                     onChange={async (e) => {
                       const newStatus = e.target.value;
+    
+                      // Log for debugging
+                      console.log('Changing status for check:', selectedCheck);
+    
+                      if (!selectedCheck.checkRef) {
+                        alert('Error: Check reference is missing. Cannot update status.');
+                        return;
+                      }
+    
                       const updates = { status: newStatus };
                       if (newStatus === 'completed') {
                         updates.completedDate = new Date().toISOString().split('T')[0];
                       }
-                      await updateCheckStatus(selectedCheck.checkRef, updates);
+    
+                      // Update state and get the new data
+                      const updatedData = complianceData.map(item => 
+                        item.checkRef === selectedCheck.checkRef ? { ...item, ...updates } : item
+                      );
+    
+                      console.log('Updated data:', updatedData.filter(item => item.checkRef === selectedCheck.checkRef));
+    
+                      setComplianceData(updatedData);
                       setSelectedCheck({ ...selectedCheck, ...updates });
     
-                      // Save to GitHub immediately
-                      await saveComplianceDataToGitHub();
+                      // Save the updated data to GitHub
+                      await saveComplianceDataToGitHub(updatedData);
                     }}
                     className="flex-1 border border-gray-300 rounded-lg p-2 text-sm"
                   >
