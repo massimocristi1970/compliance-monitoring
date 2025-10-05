@@ -293,19 +293,77 @@ const ComplianceDashboard = () => {
   };
 
   const updateCheckStatus = async (checkRef, updates) => {
-    setComplianceData(prev => prev.map(item => 
-      item.checkRef === checkRef ? { ...item, ...updates } : item
-    ));
-    console.log(`📝 Updated check ${checkRef}:`, updates);
-  };
+  setComplianceData(prev => prev.map(item => 
+    item.checkRef === checkRef ? { ...item, ...updates } : item
+  ));
+  console.log(`📝 Updated check ${checkRef}:`, updates);
+};
 
-  const handleFileUpload = async (checkRef, files) => {
-    if (!isAuthenticated) {
-      alert('Please authenticate with GitHub to upload files.');
-      return;
+const saveComplianceDataToGitHub = async () => {
+  if (!isAuthenticated || !accessToken) {
+    alert('Please authenticate to save changes.');
+    return;
+  }
+
+  const REPO_OWNER = 'massimocristi1970';
+  const REPO_NAME = 'compliance-monitoring';
+  
+  try {
+    // Find the existing Compliance Data issue
+    const searchResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues?labels=admin-data&state=all`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!searchResponse.ok) {
+      throw new Error(`Failed to search issues: ${searchResponse.statusText}`);
     }
 
-    setUploadingFile(true);
+    const existingIssues = await searchResponse.json();
+    const existingIssue = existingIssues.find(issue => issue.title === 'Compliance Data');
+
+    if (!existingIssue) {
+      throw new Error('Compliance Data issue not found');
+    }
+
+    // Update the issue with current compliance data
+    const body = `\`\`\`json\n${JSON.stringify(complianceData, null, 2)}\n\`\`\`\n\n*Last updated: ${new Date().toISOString()}*\n*Updated by: ${user.login} (${user.name || user.login})*`;
+
+    const updateResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues/${existingIssue.number}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github.v3+json'
+      },
+      body: JSON.stringify({
+        body,
+        labels: ['admin-data', 'compliance']
+      })
+    });
+
+    if (!updateResponse.ok) {
+      const error = await updateResponse.json();
+      throw new Error(`Failed to update issue: ${error.message}`);
+    }
+
+    console.log('✅ Compliance data saved to GitHub');
+    alert('Changes saved successfully!');
+  } catch (error) {
+    console.error('Failed to save:', error);
+    alert(`Failed to save changes: ${error.message}`);
+  }
+};
+
+const handleFileUpload = async (checkRef, files) => {
+  if (!isAuthenticated) {
+    alert('Please authenticate with GitHub to upload files.');
+    return;
+  }
+
+  setUploadingFile(true);
     
     try {
       const REPO_OWNER = 'massimocristi1970';
@@ -856,14 +914,17 @@ const ComplianceDashboard = () => {
                 <div className="flex gap-3 pt-4 border-t border-gray-200">
                   <select
                     value={selectedCheck.status}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const newStatus = e.target.value;
                       const updates = { status: newStatus };
                       if (newStatus === 'completed') {
                         updates.completedDate = new Date().toISOString().split('T')[0];
                       }
-                      updateCheckStatus(selectedCheck.checkRef, updates);
+                      await updateCheckStatus(selectedCheck.checkRef, updates);
                       setSelectedCheck({ ...selectedCheck, ...updates });
+    
+                      // Save to GitHub immediately
+                      await saveComplianceDataToGitHub();
                     }}
                     className="flex-1 border border-gray-300 rounded-lg p-2 text-sm"
                   >
