@@ -20,6 +20,8 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
+  const AUTHORIZED_ADMINS = ['massimocristi1970'];
+  const [isAdmin, setIsAdmin] = useState(false);
   
   // Date selection for operations
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -73,51 +75,42 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   ];
 
   // Firebase listener to manage authentication state
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // Get provider data for user details
-        const lastSignInProvider = firebaseUser.providerData.find(
-          p => p.providerId === GithubAuthProvider.PROVIDER_ID
-        );
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    if (firebaseUser) {
+      // Try to restore the full user object from sessionStorage FIRST
+      const storedUserData = sessionStorage.getItem('github_user');
+      const storedToken = sessionStorage.getItem('github_access_token');
       
-        // Map Firebase user data to the existing user object structure
-        const userData = {
-          login: lastSignInProvider?.screenName || firebaseUser.displayName,
-          name: firebaseUser.displayName,
-          avatar_url: firebaseUser.photoURL,
-        };
-
+      if (storedUserData && storedToken) {
+        // Rehydrate from storage
+        const userData = JSON.parse(storedUserData);
         setUser(userData);
-      
-        // Retrieve token from sessionStorage
-        const storedToken = sessionStorage.getItem('github_access_token');
-        if (storedToken) {
-          setAccessToken(storedToken);
-          setIsAuthenticated(true);
-          console.log('Token retrieved from sessionStorage');
-        } else {
-          // No token found - user needs to re-authenticate
-          setIsAuthenticated(false);
-          console.warn('User authenticated but no token found. Please login again.');
-        }
-
-        // If this is the AdminPanel, run the specific loadData function
-        if (typeof loadData === 'function') {
-          loadData();
-        }
-
+        setAccessToken(storedToken);
+        setIsAuthenticated(true);
+        setIsAdmin(AUTHORIZED_ADMINS.includes(userData.login));
+        console.log('User restored from sessionStorage:', userData);
       } else {
-        // User is signed out
-        setAccessToken(null);
-        setUser(null);
+        // Fallback: user is authenticated but we lost the session data
+        console.warn('User authenticated but session data missing. Please login again.');
         setIsAuthenticated(false);
+        setIsAdmin(false);
       }
-    });
+      
+      if (typeof loadData === 'function') {
+        loadData();
+      }
+    } else {
+      // User is signed out
+      setAccessToken(null);
+      setUser(null);
+      setIsAuthenticated(false);
+      setIsAdmin(false);
+    }
+  });
 
-    // Cleanup listener on component unmount
-    return () => unsubscribe();
-  }, []);
+  return () => unsubscribe();
+}, []);
 
   // Update newCheck month/year when selectedMonth/selectedYear changes
   useEffect(() => {
@@ -129,42 +122,58 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
   }, [selectedMonth, selectedYear]);
 
   const login = async () => {
-    try {
-       const result = await signInWithPopup(auth, githubProvider);
-  
-       // Extract the token directly from the sign-in result
-       const credential = GithubAuthProvider.credentialFromResult(result);
-       const token = credential.accessToken;
-  
-       // Store token in sessionStorage for persistence
-       if (token) {
-         sessionStorage.setItem('github_access_token', token);
-         setAccessToken(token);
-         console.log('Token saved to sessionStorage');
-       }
-
-     } catch (error) {
-       console.error('Firebase GitHub sign-in error:', error.message);
-       alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
-     }
-   };
+  try {
+    const result = await signInWithPopup(auth, githubProvider);
+    
+    // Extract the token
+    const credential = GithubAuthProvider.credentialFromResult(result);
+    const token = credential.accessToken;
+    
+    // Extract the CORRECT GitHub username from the raw response
+    const githubUsername = result._tokenResponse?.rawUserInfo 
+      ? JSON.parse(result._tokenResponse.rawUserInfo).login 
+      : result.user.displayName;
+    
+    // Build complete user object with correct login
+    const userData = {
+      login: githubUsername,
+      name: result.user.displayName,
+      avatar_url: result.user.photoURL,
+    };
+    
+    // Store BOTH token and user data in sessionStorage
+    if (token) {
+      sessionStorage.setItem('github_access_token', token);
+      sessionStorage.setItem('github_user', JSON.stringify(userData));
+      setAccessToken(token);
+      setUser(userData);
+      setIsAuthenticated(true);
+      setIsAdmin(AUTHORIZED_ADMINS.includes(userData.login));
+      console.log('Token and user saved to sessionStorage', userData);
+    }
+  } catch (error) {
+    console.error('Firebase GitHub sign-in error:', error.message);
+    alert('Authentication failed: ' + (error.message.includes('popup') ? 'Popup closed or blocked.' : error.message));
+  }
+};
 
   const logout = () => {
-    // Clear session storage BEFORE signing out
-    sessionStorage.removeItem('github_access_token');
-    sessionStorage.removeItem('github_user');
-    sessionStorage.removeItem('oauth_state');
-  
-    signOut(auth).then(() => {
-      console.log('User signed out successfully.');
-      setAccessToken(null);
-      setUser(null);
-      setIsAuthenticated(false);
-    }).catch((error) => {
-      console.error('Sign-out error:', error.message);
-      alert('Sign-out failed: ' + error.message);
-    });
-  };
+  // Clear session storage BEFORE signing out
+  sessionStorage.removeItem('github_access_token');
+  sessionStorage.removeItem('github_user');
+  sessionStorage.removeItem('oauth_state');
+
+  signOut(auth).then(() => {
+    console.log('User signed out successfully.');
+    setAccessToken(null);
+    setUser(null);
+    setIsAuthenticated(false);
+    setIsAdmin(false);
+  }).catch((error) => {
+    console.error('Sign-out error:', error.message);
+    alert('Sign-out failed: ' + error.message);
+  });
+};
 
   // Helper function to save data using OAuth token
   const saveToGitHubIssues = async (title, data, labels = []) => {
@@ -789,40 +798,67 @@ const AdminPanel = ({ onClose, onDataUpdate }) => {
     </button>
   );
 
-  // Authentication Gate
-  if (!isAuthenticated) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
-          <div className="text-center">
-            <Settings className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin Panel</h2>
-            <p className="text-gray-600 mb-6">
-              Authentication required to manage compliance data safely.
-            </p>
-            
-            <div className="space-y-4">
-              <button
-                onClick={login}
-                className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                <LogIn className="w-5 h-5" />
-                Login with GitHub
-              </button>
+  // Authentication Gate - Not logged in at all
+if (!isAuthenticated) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
+        <div className="text-center">
+          <Settings className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin Panel</h2>
+          <p className="text-gray-600 mb-6">
+            Authentication required to manage compliance data safely.
+          </p>
+          
+          <div className="space-y-4">
+            <button
+              onClick={login}
+              className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              <LogIn className="w-5 h-5" />
+              Login with GitHub
+            </button>
 
-              <button
-                onClick={onClose}
-                className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
-              >
-                Cancel
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-full text-gray-500 hover:text-gray-700 px-6 py-2"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
+// Authorization Gate - Logged in but not admin
+if (isAuthenticated && !isAdmin) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
+        <div className="text-center">
+          <Settings className="w-16 h-16 text-red-600 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-4">
+            You don't have administrator permissions.
+          </p>
+          <p className="text-sm text-gray-500 mb-6">
+            Logged in as: <strong>{user.name}</strong> (@{user.login})
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Full Admin Panel - Authenticated AND authorized
 return (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
     <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[90vh] overflow-hidden flex flex-col">
