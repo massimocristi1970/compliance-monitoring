@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, AlignmentType, WidthType, HeadingLevel } from "docx";
+import { saveAs } from "file-saver";
 import {
   Calendar,
   Upload,
@@ -682,6 +684,121 @@ const ComplianceDashboard = () => {
       .length,
   };
 
+  const generateWordReport = async () => {
+    // Create the report data (same as JSON version)
+    const report = {
+      period: `${months[selectedMonth - 1]} ${selectedYear}`,
+      generatedDate: new Date().toISOString(),
+      generatedBy: user ? `${user.name || user.login} (OAuth)` : "Anonymous",
+      summary: stats,
+    };
+
+    // Create Word document
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: [
+            // Title
+            new Paragraph({
+              text: "Compliance Monitoring Report",
+              heading: HeadingLevel.HEADING_1,
+              alignment: AlignmentType.CENTER,
+            }),
+            new Paragraph({
+              text: `Period: ${report.period}`,
+              alignment: AlignmentType.CENTER,
+            }),
+            new Paragraph({
+              text: `Generated: ${new Date(report.generatedDate).toLocaleDateString()}`,
+              alignment: AlignmentType.CENTER,
+            }),
+            new Paragraph({ text: "" }), // Blank line
+
+            // Summary Section
+            new Paragraph({
+              text: "Summary Statistics",
+              heading: HeadingLevel.HEADING_2,
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Total Checks: ", bold: true }),
+                new TextRun(stats.total.toString()),
+              ],
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Completed: ", bold: true }),
+                new TextRun(stats.completed.toString()),
+              ],
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Pending: ", bold: true }),
+                new TextRun(stats.pending.toString()),
+              ],
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Overdue: ", bold: true }),
+                new TextRun(stats.overdue.toString()),
+              ],
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Completion Rate: ", bold: true }),
+                new TextRun(`${stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%`),
+              ],
+            }),
+            new Paragraph({ text: "" }), // Blank line
+
+            // Checks Table
+            new Paragraph({
+              text: "Compliance Checks",
+              heading: HeadingLevel.HEADING_2,
+            }),
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [
+                // Header row
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph({ text: "Ref", bold: true })] }),
+                    new TableCell({ children: [new Paragraph({ text: "Action", bold: true })] }),
+                    new TableCell({ children: [new Paragraph({ text: "Status", bold: true })] }),
+                    new TableCell({ children: [new Paragraph({ text: "Responsibility", bold: true })] }),
+                    new TableCell({ children: [new Paragraph({ text: "Business Area", bold: true })] }),
+                  ],
+                }),
+                // Data rows
+                ...filteredData.map(
+                  (check) =>
+                    new TableRow({
+                      children: [
+                        new TableCell({ children: [new Paragraph(check.checkRef.toString())] }),
+                        new TableCell({ children: [new Paragraph(check.action || "")] }),
+                        new TableCell({ children: [new Paragraph(check.status || "")] }),
+                        new TableCell({ children: [new Paragraph(check.responsibility || "")] }),
+                        new TableCell({ children: [new Paragraph(check.businessArea || "")] }),
+                      ],
+                    })
+                ),
+              ],
+            }),
+          ],
+        },
+      ],
+    });
+
+    // Generate and download the document
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, `compliance-report-${selectedYear}-${selectedMonth.toString().padStart(2, "0")}.docx`);
+
+    alert(
+      `Word report generated and downloaded!\n\nSummary:\n- Total checks: ${stats.total}\n- Completion rate: ${stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%\n- Overdue items: ${stats.overdue}`
+    );
+  };
+
   const generateMonthlyReport = () => {
     const report = {
       period: `${months[selectedMonth - 1]} ${selectedYear}`,
@@ -841,7 +958,7 @@ const ComplianceDashboard = () => {
               </button>
 
               <button
-                onClick={generateMonthlyReport}
+                onClick={generateWordReport}
                 className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
               >
                 <Download className="w-4 h-4" />
