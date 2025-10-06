@@ -785,6 +785,66 @@ const ComplianceDashboard = () => {
                 ),
               ],
             }),
+
+            // Comments & Notes Section
+            new Paragraph({ text: "" }), // Blank line
+            new Paragraph({
+              text: "Comments & Notes",
+              heading: HeadingLevel.HEADING_2,
+            }),
+
+            // Check if there are any comments
+            ...(() => {
+              const checksWithComments = filteredData.filter((check) => check.comments);
+              
+              if (checksWithComments.length === 0) {
+                return [new Paragraph({ text: "No comments or notes for this period.", italics: true })];
+              }
+
+              return checksWithComments.flatMap((check) => {
+                let noteData;
+                try {
+                  noteData = JSON.parse(check.comments);
+                } catch (e) {
+                  noteData = {
+                    text: check.comments,
+                    addedBy: "Unknown",
+                    addedAt: "Unknown",
+                  };
+                }
+
+                return [
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: `Check #${check.checkRef}: `, bold: true }),
+                      new TextRun(check.action || ""),
+                    ],
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "Business Area: ", bold: true }),
+                      new TextRun(check.businessArea || ""),
+                    ],
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "Note: ", bold: true }),
+                      new TextRun(noteData.text || ""),
+                    ],
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ 
+                        text: `Added by ${noteData.addedBy} on ${new Date(noteData.addedAt).toLocaleString()}`, 
+                        italics: true,
+                        size: 20, // Smaller font
+                      }),
+                    ],
+                  }),
+                  new Paragraph({ text: "" }), // Blank line between notes
+                ];
+              });
+            })(),
           ],
         },
       ],
