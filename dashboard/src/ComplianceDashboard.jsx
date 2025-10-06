@@ -683,60 +683,70 @@ const ComplianceDashboard = () => {
   };
 
   const generateMonthlyReport = () => {
-  const report = {
-    period: `${months[selectedMonth - 1]} ${selectedYear}`,
-    generatedDate: new Date().toISOString(),
-    generatedBy: user ? `${user.name || user.login} (OAuth)` : 'Anonymous',
-    summary: stats,
-    checks: filteredData.map(check => ({
-      checkRef: check.checkRef,
-      action: check.action,
-      status: check.status,
-      responsibility: check.responsibility,
-      businessArea: check.businessArea,
-      dueDate: check.dueDate,
-      completedDate: check.completedDate,
-      filesCount: check.files?.length || 0
-    })),
-    completedChecks: filteredData.filter(c => c.status === 'completed'),
-    outstandingChecks: filteredData.filter(c => c.status !== 'completed'),
-    overallCompletionRate: stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0,
-    
-    // NEW: Dedicated comments section
-    commentsAndNotes: filteredData
-      .filter(check => check.comments)
-      .map(check => {
-        let noteData;
-        try {
-          noteData = JSON.parse(check.comments);
-        } catch (e) {
-          noteData = { text: check.comments, addedBy: 'Unknown', addedAt: 'Unknown' };
-        }
-        
-        return {
-          checkRef: check.checkRef,
-          checkAction: check.action,
-          businessArea: check.businessArea,
-          note: noteData.text,
-          addedBy: noteData.addedBy,
-          addedAt: noteData.addedAt
-        };
-      })
+    const report = {
+      period: `${months[selectedMonth - 1]} ${selectedYear}`,
+      generatedDate: new Date().toISOString(),
+      generatedBy: user ? `${user.name || user.login} (OAuth)` : "Anonymous",
+      summary: stats,
+      checks: filteredData.map((check) => ({
+        checkRef: check.checkRef,
+        action: check.action,
+        status: check.status,
+        responsibility: check.responsibility,
+        businessArea: check.businessArea,
+        dueDate: check.dueDate,
+        completedDate: check.completedDate,
+        filesCount: check.files?.length || 0,
+      })),
+      completedChecks: filteredData.filter((c) => c.status === "completed"),
+      outstandingChecks: filteredData.filter((c) => c.status !== "completed"),
+      overallCompletionRate:
+        stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0,
+
+      // NEW: Dedicated comments section
+      commentsAndNotes: filteredData
+        .filter((check) => check.comments)
+        .map((check) => {
+          let noteData;
+          try {
+            noteData = JSON.parse(check.comments);
+          } catch (e) {
+            noteData = {
+              text: check.comments,
+              addedBy: "Unknown",
+              addedAt: "Unknown",
+            };
+          }
+
+          return {
+            checkRef: check.checkRef,
+            checkAction: check.action,
+            businessArea: check.businessArea,
+            note: noteData.text,
+            addedBy: noteData.addedBy,
+            addedAt: noteData.addedAt,
+          };
+        }),
+    };
+
+    console.log("Monthly Report Generated:", report);
+
+    const dataStr = JSON.stringify(report, null, 2);
+    const dataUri =
+      "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
+    const exportFileDefaultName = `compliance-report-${selectedYear}-${selectedMonth
+      .toString()
+      .padStart(2, "0")}.json`;
+
+    const linkElement = document.createElement("a");
+    linkElement.setAttribute("href", dataUri);
+    linkElement.setAttribute("download", exportFileDefaultName);
+    linkElement.click();
+
+    alert(
+      `Monthly report generated and downloaded!\n\nSummary:\n- Total checks: ${stats.total}\n- Completion rate: ${report.overallCompletionRate}%\n- Overdue items: ${stats.overdue}\n- Checks with notes: ${report.commentsAndNotes.length}`
+    );
   };
-  
-  console.log('Monthly Report Generated:', report);
-  
-  const dataStr = JSON.stringify(report, null, 2);
-  const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-  const exportFileDefaultName = `compliance-report-${selectedYear}-${selectedMonth.toString().padStart(2, '0')}.json`;
-  
-  const linkElement = document.createElement('a');
-  linkElement.setAttribute('href', dataUri);
-  linkElement.setAttribute('download', exportFileDefaultName);
-  linkElement.click();
-  
-  alert(`Monthly report generated and downloaded!\n\nSummary:\n- Total checks: ${stats.total}\n- Completion rate: ${report.overallCompletionRate}%\n- Overdue items: ${stats.overdue}\n- Checks with notes: ${report.commentsAndNotes.length}`);
-};
 
   const handleAdminDataUpdate = (newData) => {
     if (newData.complianceChecks) {
@@ -1096,14 +1106,14 @@ const ComplianceDashboard = () => {
                               if (check.comments) {
                                 try {
                                   const noteData = JSON.parse(check.comments);
-                                  setEditingNotes(noteData.text || '');
+                                  setEditingNotes(noteData.text || "");
                                 } catch (e) {
-                                  setEditingNotes(check.comments || '');
-                              } 
-                                } else {
-                                setEditingNotes('');
+                                  setEditingNotes(check.comments || "");
+                                }
+                              } else {
+                                setEditingNotes("");
                               }
-                          }}
+                            }}
                             className="text-blue-600 hover:text-blue-900"
                           >
                             View
@@ -1212,7 +1222,77 @@ const ComplianceDashboard = () => {
                     </p>
                   )}
                 </div>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    <MessageSquare className="w-4 h-4 inline mr-1" />
+                    Notes & Comments
+                  </h4>
 
+                  {/* Display existing note with metadata */}
+                  {selectedCheck.comments &&
+                    (() => {
+                      try {
+                        const noteData = JSON.parse(selectedCheck.comments);
+                        return (
+                          <div className="bg-gray-50 p-3 rounded-lg mb-3 text-sm">
+                            <p className="text-gray-900 whitespace-pre-wrap mb-2">
+                              {noteData.text}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Added by <strong>{noteData.addedBy}</strong> on{" "}
+                              {new Date(noteData.addedAt).toLocaleString()}
+                            </p>
+                          </div>
+                        );
+                      } catch (e) {
+                        // Fallback for old format (plain string)
+                        return (
+                          <div className="bg-gray-50 p-3 rounded-lg mb-3 text-sm">
+                            <p className="text-gray-900">
+                              {selectedCheck.comments}
+                            </p>
+                          </div>
+                        );
+                      }
+                    })()}
+
+                  {/* Text area for editing */}
+                  <textarea
+                    value={editingNotes}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 4000) {
+                        setEditingNotes(e.target.value);
+                      }
+                    }}
+                    placeholder="Add notes or comments about this compliance check..."
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm h-32 resize-y"
+                    maxLength={4000}
+                  />
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-xs text-gray-500">
+                      {editingNotes.length}/4000 characters
+                    </span>
+                    <button
+                      onClick={() =>
+                        saveCheckNotes(selectedCheck.checkRef, editingNotes)
+                      }
+                      disabled={savingNotes || !editingNotes.trim()}
+                      className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    >
+                      {savingNotes ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <MessageSquare className="w-4 h-4" />
+                          Save Notes
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
                 <div className="flex gap-3 pt-4 border-t border-gray-200">
                   <select
                     value={selectedCheck.status}
