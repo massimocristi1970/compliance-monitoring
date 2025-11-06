@@ -79,22 +79,11 @@ const ComplianceDashboard = () => {
     "December",
   ];
 
-  // New Data Loading Block (Lines 63-67)
-
-  // 1. Initial Load (Runs once on mount for static/sample data and summary)
+  // Load data from JSON files
   useEffect(() => {
+    loadComplianceData();
     loadSummaryData();
-    // loadComplianceData is now moved to the accessToken watcher
   }, []);
-
-  // 2. Load LIVE data when Access Token becomes available
-  useEffect(() => {
-    // Only attempt to load the live, token-required data when the token is present
-    if (accessToken) {
-      console.log("Token available. Attempting to load live compliance data.");
-      loadComplianceData();
-    }
-  }, [accessToken]); // <-- This is the CRITICAL change
 
   // Firebase listener to manage authentication state (CORRECTED VERSION)
   useEffect(() => {
@@ -285,28 +274,17 @@ const ComplianceDashboard = () => {
     }
   };
 
-  // Lines 223-255 in your file (replaces the entire old function)
   const loadFromGitHubIssues = async (title) => {
     const REPO_OWNER = "massimocristi1970";
     const REPO_NAME = "compliance-monitoring";
-
-    // ⭐ NEW: Retrieve the token from sessionStorage ⭐
-    const token = sessionStorage.getItem("github_access_token");
-
-    const headers = {
-      Accept: "application/vnd.github.v3+json",
-    };
-
-    // ⭐ NEW: Add Authorization header if token is found ⭐
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
 
     try {
       const response = await fetch(
         `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues?labels=admin-data&state=all`,
         {
-          headers: headers, // <-- Use the combined headers object
+          headers: {
+            Accept: "application/vnd.github.v3+json",
+          },
         }
       );
 
@@ -624,21 +602,13 @@ const ComplianceDashboard = () => {
         comments: JSON.stringify(noteWithMetadata),
       }));
 
-      // ⭐ CRITICAL FIX: Save the updated main data to the GitHub Issue body ⭐
-      await saveComplianceDataToGitHub();
-      console.log(
-        "Saving notes also triggered update of main Compliance Data issue."
-      );
-
       console.log(`✅ Notes saved to ${metadataPath}`);
       setSavingNotes(false);
       setEditingNotes("");
       alert(
-        "Notes saved successfully and persisted to main data source! You can now log out and log back in without losing this note."
+        "Notes saved successfully! Run sync script and deploy to see changes."
       );
     } catch (error) {
-      // ... rest of your catch block ...
-
       setSavingNotes(false);
       console.error("Failed to save notes:", error);
       alert(`Failed to save notes: ${error.message}`);
