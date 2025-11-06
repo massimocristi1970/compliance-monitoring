@@ -1491,7 +1491,7 @@ const ComplianceDashboard = () => {
                           <div className="bg-gray-50 p-3 rounded-lg mb-3 text-sm">
                             <p className="text-gray-900">
                               {selectedCheck.comments}
-                            </ADV>
+                            </p>
                           </div>
                         );
                       }
