@@ -430,7 +430,11 @@ const ComplianceDashboard = () => {
     console.log(`📝 Updated check ${checkRef}:`, updates);
   };
 
-  const saveComplianceDataToGitHub = async () => {
+  // ----------------------------------------------------------------
+  // 1. THIS FUNCTION IS NOW FIXED
+  // It now accepts `dataToSave` as an argument.
+  // ----------------------------------------------------------------
+  const saveComplianceDataToGitHub = async (dataToSave) => {
     if (!isAuthenticated || !accessToken) {
       alert("Please authenticate to save changes.");
       return;
@@ -466,9 +470,12 @@ const ComplianceDashboard = () => {
         throw new Error("Compliance Data issue not found");
       }
 
-      // Update the issue with current compliance data
+      // ----------------------------------------------------------------
+      // 2. THIS LINE IS NOW FIXED
+      // It uses the `dataToSave` argument instead of the stale `complianceData` state.
+      // ----------------------------------------------------------------
       const body = `\`\`\`json\n${JSON.stringify(
-        complianceData,
+        dataToSave, // <-- USES THE ARGUMENT
         null,
         2
       )}\n\`\`\`\n\n*Last updated: ${new Date().toISOString()}*\n*Updated by: ${
@@ -497,13 +504,17 @@ const ComplianceDashboard = () => {
       }
 
       console.log("✅ Compliance data saved to GitHub");
-      alert("Changes saved successfully!");
+      // We remove the alert from here to stop double-alerts
     } catch (error) {
       console.error("Failed to save:", error);
       alert(`Failed to save changes: ${error.message}`);
     }
   };
 
+  // ----------------------------------------------------------------
+  // 3. THIS FUNCTION IS NOW FIXED
+  // It now passes `updatedData` to the save function.
+  // ----------------------------------------------------------------
   const saveCheckNotes = async (checkRef, notes) => {
     if (!isAuthenticated || !accessToken) {
       alert("Please authenticate to save notes.");
@@ -533,7 +544,8 @@ const ComplianceDashboard = () => {
       // Update selected check to reflect changes
       setSelectedCheck((prev) => ({ ...prev, ...updates }));
 
-      await saveComplianceDataToGitHub(updatedData);
+      // Pass the new data directly to the save function
+      await saveComplianceDataToGitHub(updatedData); // <-- FIX
 
       setSavingNotes(false);
       alert("Notes saved successfully!");
@@ -1574,8 +1586,11 @@ const ComplianceDashboard = () => {
                       setComplianceData(updatedData);
                       setSelectedCheck({ ...selectedCheck, ...updates });
 
-                      // Save the updated data to GitHub
-                      await saveComplianceDataToGitHub(updatedData);
+                      // ----------------------------------------------------------------
+                      // 4. THIS FUNCTION CALL IS NOW FIXED
+                      // It now passes the `updatedData` to the save function.
+                      // ----------------------------------------------------------------
+                      await saveComplianceDataToGitHub(updatedData); // <-- FIX
                     }}
                     className="flex-1 border border-gray-300 rounded-lg p-2 text-sm"
                   >
@@ -1694,7 +1709,7 @@ const ComplianceDashboard = () => {
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
                         <p className="text-sm text-gray-600 mt-2">
                           Uploading to GitHub...
-                        </p>
+                        </g>
                       </div>
                     )}
                   </>
