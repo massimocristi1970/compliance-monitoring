@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, AlignmentType, WidthType, HeadingLevel } from "docx";
+import {
+  Document,
+  Packer,
+  Paragraph,
+  Table,
+  TableCell,
+  TableRow,
+  TextRun,
+  AlignmentType,
+  WidthType,
+  HeadingLevel,
+} from "docx";
 import { saveAs } from "file-saver";
 import {
   Calendar,
@@ -502,6 +513,46 @@ const ComplianceDashboard = () => {
     setSavingNotes(true);
 
     try {
+      const REPO_OWNER = "massimocristi1970";
+      const REPO_NAME = "compliance-monitoring";
+
+      // Find the check to get its month/year info
+      const check = complianceData.find((item) => item.checkRef === checkRef);
+
+      if (!check) {
+        throw new Error("Check not found");
+      }
+
+      // Determine the correct path
+      const monthName =
+        check.month ||
+        months[check.monthNumber - 1]?.toLowerCase() ||
+        months[selectedMonth - 1].toLowerCase();
+      const year = check.year || selectedYear;
+      const metadataPath = `data/${year}/${monthName}/check-${checkRef}/metadata.json`;
+
+      // Get current metadata.json from GitHub
+      const getResponse = await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${metadataPath}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/vnd.github.v3+json",
+          },
+        }
+      );
+
+      let sha = null;
+      let currentMetadata = { ...check };
+
+      if (getResponse.ok) {
+        const fileData = await getResponse.json();
+        sha = fileData.sha;
+        const content = atob(fileData.content);
+        currentMetadata = JSON.parse(content);
+      }
+
+      // Update metadata with new notes
       const timestamp = new Date().toISOString();
       const noteWithMetadata = {
         text: notes,
@@ -509,23 +560,52 @@ const ComplianceDashboard = () => {
         addedAt: timestamp,
       };
 
-      const updates = {
-        comments: JSON.stringify(noteWithMetadata),
-      };
+      currentMetadata.comments = JSON.stringify(noteWithMetadata);
 
-      const updatedData = complianceData.map((item) =>
-        item.checkRef === checkRef ? { ...item, ...updates } : item
+      // Save updated metadata back to GitHub
+      const base64Content = btoa(JSON.stringify(currentMetadata, null, 2));
+
+      const updateResponse = await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${metadataPath}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            Accept: "application/vnd.github.v3+json",
+          },
+          body: JSON.stringify({
+            message: `Update notes for check #${checkRef} by ${user.login}`,
+            content: base64Content,
+            sha: sha,
+            branch: "main",
+          }),
+        }
       );
 
+      if (!updateResponse.ok) {
+        const error = await updateResponse.json();
+        throw new Error(`Failed to update metadata: ${error.message}`);
+      }
+
+      // Update local state
+      const updatedData = complianceData.map((item) =>
+        item.checkRef === checkRef
+          ? { ...item, comments: JSON.stringify(noteWithMetadata) }
+          : item
+      );
       setComplianceData(updatedData);
+      setSelectedCheck((prev) => ({
+        ...prev,
+        comments: JSON.stringify(noteWithMetadata),
+      }));
 
-      // Update selected check to reflect changes
-      setSelectedCheck((prev) => ({ ...prev, ...updates }));
-
-      await saveComplianceDataToGitHub(updatedData);
-
+      console.log(`✅ Notes saved to ${metadataPath}`);
       setSavingNotes(false);
-      alert("Notes saved successfully!");
+      setEditingNotes("");
+      alert(
+        "Notes saved successfully! Run sync script and deploy to see changes."
+      );
     } catch (error) {
       setSavingNotes(false);
       console.error("Failed to save notes:", error);
@@ -710,7 +790,9 @@ const ComplianceDashboard = () => {
               alignment: AlignmentType.CENTER,
             }),
             new Paragraph({
-              text: `Generated: ${new Date(report.generatedDate).toLocaleDateString()}`,
+              text: `Generated: ${new Date(
+                report.generatedDate
+              ).toLocaleDateString()}`,
               alignment: AlignmentType.CENTER,
             }),
             new Paragraph({ text: "" }), // Blank line
@@ -747,7 +829,13 @@ const ComplianceDashboard = () => {
             new Paragraph({
               children: [
                 new TextRun({ text: "Completion Rate: ", bold: true }),
-                new TextRun(`${stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%`),
+                new TextRun(
+                  `${
+                    stats.total > 0
+                      ? Math.round((stats.completed / stats.total) * 100)
+                      : 0
+                  }%`
+                ),
               ],
             }),
             new Paragraph({ text: "" }), // Blank line
@@ -763,11 +851,25 @@ const ComplianceDashboard = () => {
                 // Header row
                 new TableRow({
                   children: [
-                    new TableCell({ children: [new Paragraph({ text: "Ref", bold: true })] }),
-                    new TableCell({ children: [new Paragraph({ text: "Action", bold: true })] }),
-                    new TableCell({ children: [new Paragraph({ text: "Status", bold: true })] }),
-                    new TableCell({ children: [new Paragraph({ text: "Responsibility", bold: true })] }),
-                    new TableCell({ children: [new Paragraph({ text: "Business Area", bold: true })] }),
+                    new TableCell({
+                      children: [new Paragraph({ text: "Ref", bold: true })],
+                    }),
+                    new TableCell({
+                      children: [new Paragraph({ text: "Action", bold: true })],
+                    }),
+                    new TableCell({
+                      children: [new Paragraph({ text: "Status", bold: true })],
+                    }),
+                    new TableCell({
+                      children: [
+                        new Paragraph({ text: "Responsibility", bold: true }),
+                      ],
+                    }),
+                    new TableCell({
+                      children: [
+                        new Paragraph({ text: "Business Area", bold: true }),
+                      ],
+                    }),
                   ],
                 }),
                 // Data rows
@@ -775,11 +877,21 @@ const ComplianceDashboard = () => {
                   (check) =>
                     new TableRow({
                       children: [
-                        new TableCell({ children: [new Paragraph(check.checkRef.toString())] }),
-                        new TableCell({ children: [new Paragraph(check.action || "")] }),
-                        new TableCell({ children: [new Paragraph(check.status || "")] }),
-                        new TableCell({ children: [new Paragraph(check.responsibility || "")] }),
-                        new TableCell({ children: [new Paragraph(check.businessArea || "")] }),
+                        new TableCell({
+                          children: [new Paragraph(check.checkRef.toString())],
+                        }),
+                        new TableCell({
+                          children: [new Paragraph(check.action || "")],
+                        }),
+                        new TableCell({
+                          children: [new Paragraph(check.status || "")],
+                        }),
+                        new TableCell({
+                          children: [new Paragraph(check.responsibility || "")],
+                        }),
+                        new TableCell({
+                          children: [new Paragraph(check.businessArea || "")],
+                        }),
                       ],
                     })
                 ),
@@ -795,10 +907,17 @@ const ComplianceDashboard = () => {
 
             // Check if there are any comments
             ...(() => {
-              const checksWithComments = filteredData.filter((check) => check.comments);
-              
+              const checksWithComments = filteredData.filter(
+                (check) => check.comments
+              );
+
               if (checksWithComments.length === 0) {
-                return [new Paragraph({ text: "No comments or notes for this period.", italics: true })];
+                return [
+                  new Paragraph({
+                    text: "No comments or notes for this period.",
+                    italics: true,
+                  }),
+                ];
               }
 
               return checksWithComments.flatMap((check) => {
@@ -816,7 +935,10 @@ const ComplianceDashboard = () => {
                 return [
                   new Paragraph({
                     children: [
-                      new TextRun({ text: `Check #${check.checkRef}: `, bold: true }),
+                      new TextRun({
+                        text: `Check #${check.checkRef}: `,
+                        bold: true,
+                      }),
                       new TextRun(check.action || ""),
                     ],
                   }),
@@ -834,8 +956,10 @@ const ComplianceDashboard = () => {
                   }),
                   new Paragraph({
                     children: [
-                      new TextRun({ 
-                        text: `Added by ${noteData.addedBy} on ${new Date(noteData.addedAt).toLocaleString()}`, 
+                      new TextRun({
+                        text: `Added by ${noteData.addedBy} on ${new Date(
+                          noteData.addedAt
+                        ).toLocaleString()}`,
                         italics: true,
                         size: 20, // Smaller font
                       }),
@@ -852,10 +976,19 @@ const ComplianceDashboard = () => {
 
     // Generate and download the document
     const blob = await Packer.toBlob(doc);
-    saveAs(blob, `compliance-report-${selectedYear}-${selectedMonth.toString().padStart(2, "0")}.docx`);
+    saveAs(
+      blob,
+      `compliance-report-${selectedYear}-${selectedMonth
+        .toString()
+        .padStart(2, "0")}.docx`
+    );
 
     alert(
-      `Word report generated and downloaded!\n\nSummary:\n- Total checks: ${stats.total}\n- Completion rate: ${stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%\n- Overdue items: ${stats.overdue}`
+      `Word report generated and downloaded!\n\nSummary:\n- Total checks: ${
+        stats.total
+      }\n- Completion rate: ${
+        stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
+      }%\n- Overdue items: ${stats.overdue}`
     );
   };
 
