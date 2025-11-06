@@ -1,6 +1,6 @@
 {
   "checkRef": 19,
-  "action": "Select a sample of accounts that incurred default sums (e.g., late/failed payment charges) during the quarter (10–15 cases). For each, confirm a Notice of Default Sums (NODS) was generated when required and within statutory timeframes, that the content matches the prescribed form (correct balances, sums, mandatory wording/info sheet where applicable), and that figures reconcile to the system ledger. Check no collection/enforcement activity relied on amounts before a compliant notice was issued. Save PDF copies or system renders of the notice, the event/trigger logs, and the account transaction history as evidence.",
+  "action": "Select a sample of accounts that incurred default sums (e.g., late/failed payment charges) during the quarter (10â15 cases). For each, confirm a Notice of Default Sums (NODS) was generated when required and within statutory timeframes, that the content matches the prescribed form (correct balances, sums, mandatory wording/info sheet where applicable), and that figures reconcile to the system ledger. Check no collection/enforcement activity relied on amounts before a compliant notice was issued. Save PDF copies or system renders of the notice, the event/trigger logs, and the account transaction history as evidence.",
   "businessArea": "Statutory Notices (CCA 1974)",
   "frequency": "Quarterly",
   "responsibility": "Zoe Quick",
@@ -21,7 +21,7 @@
       "downloadUrl": "https://raw.githubusercontent.com/massimocristi1970/compliance-monitoring/main/data/2025/november/check-19/Savvica%20Keywords.docx"
     }
   ],
-  "comments": "{\"text\":\"900670, 902494, 797694, 830498, 879226, 859360, 864129, 890449, 892117, 826457, 922966, 923335, 924880, 925991, 927803\\n \\nAll areas reviewed were found to be compliant with policy; no breaches were detected\",\"addedBy\":null,\"addedAt\":\"2025-11-06T15:17:45.258Z\"}",
+  "comments": "{\"text\":\"900670, 902494, 797694, 830498, 879226, 859360, 864129, 890449, 892117, 826457, 922966, 923335, 924880, 925991, 927803\\n \\nAll areas reviewed were found to be compliant with policy; no breaches were detected\",\"addedBy\":null,\"addedAt\":\"2025-11-06T15:18:59.714Z\"}",
   "completedDate": "2025-11-06",
   "lastUpdated": "2025-11-06T15:00:53.687Z"
 }
