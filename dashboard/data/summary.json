@@ -1,0 +1,24 @@
+{
+  "totalChecks": 9,
+  "byStatus": {
+    "completed": 3,
+    "pending": 2,
+    "due_soon": 2,
+    "overdue": 1,
+    "monitoring": 1
+  },
+  "byYear": {
+    "2024": 1,
+    "2025": 8
+  },
+  "byResponsibility": {
+    "Massimo Cristi": 9
+  },
+  "byBusinessArea": {
+    "Collections & Arrears (CONC / Consumer Duty)": 1,
+    "Consumer Duty (PRIN 12 / PS24/3)": 1,
+    "SMCR & Governance": 4,
+    "Credit Agreements & Disclosures ^(CCA / CONC^)": 3
+  },
+  "lastUpdated": "2025-11-06T14:03:16.331Z"
+}
