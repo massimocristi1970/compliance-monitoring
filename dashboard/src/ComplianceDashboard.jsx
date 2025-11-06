@@ -563,7 +563,9 @@ const ComplianceDashboard = () => {
       currentMetadata.comments = JSON.stringify(noteWithMetadata);
 
       // Save updated metadata back to GitHub
-      const base64Content = btoa(JSON.stringify(currentMetadata, null, 2));
+      const base64Content = btoa(
+        unescape(encodeURIComponent(JSON.stringify(currentMetadata, null, 2)))
+      );
 
       const updateResponse = await fetch(
         `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${metadataPath}`,
