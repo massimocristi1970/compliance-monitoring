@@ -513,46 +513,6 @@ const ComplianceDashboard = () => {
     setSavingNotes(true);
 
     try {
-      const REPO_OWNER = "massimocristi1970";
-      const REPO_NAME = "compliance-monitoring";
-
-      // Find the check to get its month/year info
-      const check = complianceData.find((item) => item.checkRef === checkRef);
-
-      if (!check) {
-        throw new Error("Check not found");
-      }
-
-      // Determine the correct path
-      const monthName =
-        check.month ||
-        months[check.monthNumber - 1]?.toLowerCase() ||
-        months[selectedMonth - 1].toLowerCase();
-      const year = check.year || selectedYear;
-      const metadataPath = `data/${year}/${monthName}/check-${checkRef}/metadata.json`;
-
-      // Get current metadata.json from GitHub
-      const getResponse = await fetch(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${metadataPath}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: "application/vnd.github.v3+json",
-          },
-        }
-      );
-
-      let sha = null;
-      let currentMetadata = { ...check };
-
-      if (getResponse.ok) {
-        const fileData = await getResponse.json();
-        sha = fileData.sha;
-        const content = atob(fileData.content);
-        currentMetadata = JSON.parse(content);
-      }
-
-      // Update metadata with new notes
       const timestamp = new Date().toISOString();
       const noteWithMetadata = {
         text: notes,
@@ -560,52 +520,23 @@ const ComplianceDashboard = () => {
         addedAt: timestamp,
       };
 
-      currentMetadata.comments = JSON.stringify(noteWithMetadata);
-
-      // Save updated metadata back to GitHub
-      const base64Content = btoa(JSON.stringify(currentMetadata, null, 2));
-
-      const updateResponse = await fetch(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${metadataPath}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-            Accept: "application/vnd.github.v3+json",
-          },
-          body: JSON.stringify({
-            message: `Update notes for check #${checkRef} by ${user.login}`,
-            content: base64Content,
-            sha: sha,
-            branch: "main",
-          }),
-        }
-      );
-
-      if (!updateResponse.ok) {
-        const error = await updateResponse.json();
-        throw new Error(`Failed to update metadata: ${error.message}`);
-      }
-
-      // Update local state
-      const updatedData = complianceData.map((item) =>
-        item.checkRef === checkRef
-          ? { ...item, comments: JSON.stringify(noteWithMetadata) }
-          : item
-      );
-      setComplianceData(updatedData);
-      setSelectedCheck((prev) => ({
-        ...prev,
+      const updates = {
         comments: JSON.stringify(noteWithMetadata),
-      }));
+      };
 
-      console.log(`✅ Notes saved to ${metadataPath}`);
-      setSavingNotes(false);
-      setEditingNotes("");
-      alert(
-        "Notes saved successfully! Run sync script and deploy to see changes."
+      const updatedData = complianceData.map((item) =>
+        item.checkRef === checkRef ? { ...item, ...updates } : item
       );
+
+      setComplianceData(updatedData);
+
+      // Update selected check to reflect changes
+      setSelectedCheck((prev) => ({ ...prev, ...updates }));
+
+      await saveComplianceDataToGitHub(updatedData);
+
+      setSavingNotes(false);
+      alert("Notes saved successfully!");
     } catch (error) {
       setSavingNotes(false);
       console.error("Failed to save notes:", error);
