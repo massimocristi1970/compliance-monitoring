@@ -602,13 +602,21 @@ const ComplianceDashboard = () => {
         comments: JSON.stringify(noteWithMetadata),
       }));
 
+      // ⭐ CRITICAL FIX: Save the updated main data to the GitHub Issue body ⭐
+      await saveComplianceDataToGitHub();
+      console.log(
+        "Saving notes also triggered update of main Compliance Data issue."
+      );
+
       console.log(`✅ Notes saved to ${metadataPath}`);
       setSavingNotes(false);
       setEditingNotes("");
       alert(
-        "Notes saved successfully! Run sync script and deploy to see changes."
+        "Notes saved successfully and persisted to main data source! You can now log out and log back in without losing this note."
       );
     } catch (error) {
+      // ... rest of your catch block ...
+
       setSavingNotes(false);
       console.error("Failed to save notes:", error);
       alert(`Failed to save notes: ${error.message}`);
