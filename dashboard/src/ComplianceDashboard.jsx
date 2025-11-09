@@ -41,7 +41,7 @@ import {
 import { GithubAuthProvider } from "firebase/auth";
 import AdminPanel from "./AdminPanel";
 // MSAL (Microsoft) imports
-import { msalInstance, loginRequest, msalInitPromise } from "./msal";
+import { msalInstance, loginRequest } from "./msal";
 
 const ComplianceDashboard = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -133,36 +133,41 @@ const ComplianceDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // MSAL listener now waits for the init promise
+  // --- MODIFIED --- This is the new MSAL initialization flow
   useEffect(() => {
-    msalInitPromise
+    msalInstance
+      .initialize()
       .then(() => {
-        setMsalReady(true); // Mark MSAL as ready
-        console.log("MSAL initialized.");
-
-        // Now we can safely check for an account
-        const currentAccount = msalInstance.getActiveAccount();
-        if (currentAccount) {
-          setMicrosoftAccount(currentAccount);
-          setIsMicrosoftAuth(true);
-          console.log(
-            "Microsoft user restored from session:",
-            currentAccount.name
-          );
-        } else {
-          // Check session storage (in case active account isn't set)
-          const storedAccount = sessionStorage.getItem("ms_account");
-          if (storedAccount) {
-            const account = JSON.parse(storedAccount);
-            setMicrosoftAccount(account);
-            setIsMicrosoftAuth(true);
-            msalInstance.setActiveAccount(account);
-            console.log(
-              "Microsoft user restored from sessionStorage:",
-              account.name
-            );
-          }
-        }
+        // This handles the redirect back from Microsoft
+        msalInstance
+          .handleRedirectPromise()
+          .then((response) => {
+            if (response) {
+              // User just logged in via redirect
+              setMicrosoftAccount(response.account);
+              setIsMicrosoftAuth(true);
+              console.log(
+                "Microsoft user logged in via redirect:",
+                response.account.name
+              );
+            } else {
+              // This is a normal page load. Check for an existing session.
+              const currentAccount = msalInstance.getActiveAccount();
+              if (currentAccount) {
+                setMicrosoftAccount(currentAccount);
+                setIsMicrosoftAuth(true);
+                console.log(
+                  "Microsoft user restored from session:",
+                  currentAccount.name
+                );
+              }
+            }
+            setMsalReady(true);
+          })
+          .catch((err) => {
+            console.error("MSAL redirect handle failed:", err);
+            setMsalReady(true); // Still ready, even if login failed
+          });
       })
       .catch((err) => {
         console.error("MSAL initialization failed:", err);
@@ -193,21 +198,15 @@ const ComplianceDashboard = () => {
     }
   };
 
-  // Microsoft Login function
+  // --- MODIFIED --- Use loginRedirect instead of loginPopup
   const loginMicrosoft = async () => {
     if (!msalReady) {
       alert("Microsoft login is not ready yet. Please wait a moment.");
       return;
     }
     try {
-      const loginResponse = await msalInstance.loginPopup(loginRequest);
-      console.log("Microsoft login successful:", loginResponse.account);
-      setMicrosoftAccount(loginResponse.account);
-      setIsMicrosoftAuth(true);
-      sessionStorage.setItem(
-        "ms_account",
-        JSON.stringify(loginResponse.account)
-      );
+      // This will navigate the whole page away
+      await msalInstance.loginRedirect(loginRequest);
     } catch (err) {
       console.error("Microsoft login failed:", err);
       alert("Microsoft login failed: " + err.message);
@@ -233,16 +232,10 @@ const ComplianceDashboard = () => {
     // Clear Microsoft session
     sessionStorage.removeItem("ms_account");
     if (msalInstance.getActiveAccount()) {
-      msalInstance
-        .logoutPopup()
-        .then(() => {
-          console.log("User signed out from Microsoft successfully.");
-          setMicrosoftAccount(null);
-          setIsMicrosoftAuth(false);
-        })
-        .catch((e) => {
-          console.error("Microsoft Sign-out error:", e);
-        });
+      // --- MODIFIED --- Use logoutRedirect
+      msalInstance.logoutRedirect().catch((e) => {
+        console.error("Microsoft Sign-out error:", e);
+      });
     } else {
       setMicrosoftAccount(null);
       setIsMicrosoftAuth(false);
@@ -641,10 +634,13 @@ const ComplianceDashboard = () => {
       console.warn("Silent token acquisition failed: ", error);
       if (error.name === "InteractionRequiredAuthError") {
         try {
-          const tokenResponse = await msalInstance.acquireTokenPopup(request);
+          // --- MODIFIED --- Fallback to redirect instead of popup
+          const tokenResponse = await msalInstance.acquireTokenRedirect(
+            request
+          );
           return tokenResponse;
-        } catch (popupError) {
-          console.error("Popup token acquisition failed: ", popupError);
+        } catch (redirectError) {
+          console.error("Redirect token acquisition failed: ", redirectError);
           throw new Error("Could not acquire token for Microsoft Graph.");
         }
       } else {
@@ -672,10 +668,6 @@ const ComplianceDashboard = () => {
       const uploadedFiles = [];
 
       for (const file of Array.from(files)) {
-        // ---
-        // NOTE: This simple PUT request is limited to files under 4MB.
-        // For larger files, you need to use the Microsoft Graph "Upload Session" API.
-        // ---
         if (file.size > 4 * 1024 * 1024) {
           alert(
             `File "${file.name}" is larger than 4MB. Large file uploads are not yet supported.`
@@ -687,7 +679,6 @@ const ComplianceDashboard = () => {
           selectedMonth - 1
         ].toLowerCase()}/check-${checkRef}`;
 
-        // This API endpoint creates the folder if it doesn't exist and uploads the file.
         const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${folderPath}/${file.name}:/content`;
 
         const response = await fetch(graphUrl, {
@@ -703,8 +694,8 @@ const ComplianceDashboard = () => {
           const result = await response.json();
           uploadedFiles.push({
             name: result.name,
-            url: result.webUrl, // This is the link to view the file in browser
-            downloadUrl: result["@microsoft.graph.downloadUrl"], // This is the direct download link
+            url: result.webUrl,
+            downloadUrl: result["@microsoft.graph.downloadUrl"],
           });
           console.log(`✅ Uploaded to OneDrive: ${file.name}`);
         } else {
@@ -723,7 +714,7 @@ const ComplianceDashboard = () => {
         status: "completed",
         completedDate: new Date().toISOString().split("T")[0],
         lastUpdated: new Date().toISOString(),
-        uploadedBy: `${microsoftAccount.name} (OneDrive)`, // Use Microsoft user
+        uploadedBy: `${microsoftAccount.name} (OneDrive)`,
       };
 
       const updatedData = complianceData.map((item) =>
@@ -734,7 +725,6 @@ const ComplianceDashboard = () => {
       setComplianceData(updatedData);
 
       // 4. Save the updated file list and status back to GitHub
-      // This ensures the link to the OneDrive file is saved persistently.
       await saveComplianceDataToGitHub(updatedData);
 
       setUploadingFile(false);
@@ -753,8 +743,6 @@ const ComplianceDashboard = () => {
   };
 
   const fileToBase64 = (file) => {
-    // This function is no longer used by the upload, but might be
-    // useful for other things. We'll leave it.
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -792,7 +780,6 @@ const ComplianceDashboard = () => {
                 </span>
               )}
             </div>
-            {/* Use `file.url` which now points to OneDrive or GitHub */}
             {file.url && (
               <a
                 href={file.url}
@@ -1710,9 +1697,6 @@ const ComplianceDashboard = () => {
                     onChange={async (e) => {
                       const newStatus = e.target.value;
 
-                      // Log for debugging
-                      console.log("Changing status for check:", selectedCheck);
-
                       if (!selectedCheck.checkRef) {
                         alert(
                           "Error: Check reference is missing. Cannot update status."
@@ -1727,18 +1711,10 @@ const ComplianceDashboard = () => {
                           .split("T")[0];
                       }
 
-                      // Update state and get the new data
                       const updatedData = complianceData.map((item) =>
                         item.checkRef === selectedCheck.checkRef
                           ? { ...item, ...updates }
                           : item
-                      );
-
-                      console.log(
-                        "Updated data:",
-                        updatedData.filter(
-                          (item) => item.checkRef === selectedCheck.checkRef
-                        )
                       );
 
                       setComplianceData(updatedData);
@@ -1751,7 +1727,7 @@ const ComplianceDashboard = () => {
                   >
                     <option value="pending">Pending</option>
                     <option value="completed">Completed</option>
-                    <option value="overdue">Overdue</option>
+                    <option valueA="overdue">Overdue</option>
                     <option value="due_soon">Due Soon</option>
                     <option value="monitoring">Monitoring</option>
                   </select>

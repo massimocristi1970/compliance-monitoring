@@ -28,9 +28,5 @@ export const loginRequest = {
   scopes: ["User.Read", "Files.ReadWrite"],
 };
 
-// --- THIS IS THE FIX ---
-// We create the instance AND export a promise that resolves
-// when initialization is complete.
+// Create and export the MSAL instance
 export const msalInstance = new PublicClientApplication(msalConfig);
-export const msalInitPromise = msalInstance.initialize();
-// --- END OF FIX ---
