@@ -66,9 +66,6 @@ const ComplianceDashboard = () => {
   // OAuth state for Microsoft
   const [isMicrosoftAuth, setIsMicrosoftAuth] = useState(false);
   const [microsoftAccount, setMicrosoftAccount] = useState(null);
-  
-  // --- This is no longer needed with the popup flow ---
-  // const [msalReady, setMsalReady] = useState(false); 
 
   const [assignees, setAssignees] = useState([]);
   const [businessAreas, setBusinessAreas] = useState([]);
@@ -167,7 +164,7 @@ const ComplianceDashboard = () => {
     }
   };
 
-  // --- REVERTED TO loginPopup ---
+  // --- Using loginPopup ---
   // This will now work because of the auth.html redirect
   const loginMicrosoft = async () => {
     try {
@@ -199,7 +196,7 @@ const ComplianceDashboard = () => {
 
     // Clear Microsoft session
     if (msalInstance.getActiveAccount()) {
-      // --- REVERTED TO logoutPopup ---
+      // --- Using logoutPopup ---
       msalInstance.logoutPopup().then(() => {
           console.log("User signed out from Microsoft successfully.");
           setMicrosoftAccount(null);
@@ -1497,7 +1494,6 @@ const ComplianceDashboard = () => {
                               }
                               className="text-gray-400 cursor-not-allowed"
                               title="Login required"
-                              disabled={!msalReady}
                             >
                               Upload
                             </button>
@@ -1690,9 +1686,7 @@ const ComplianceDashboard = () => {
                   >
                     <option value="pending">Pending</option>
                     <option value="completed">Completed</option>
-                    {/* --- THIS IS THE CRASH FIX --- */}
                     <option value="overdue">Overdue</option>
-                    {/* --- END OF FIX --- */}
                     <option value="due_soon">Due Soon</option>
                     <option value="monitoring">Monitoring</option>
                   </select>
@@ -1714,7 +1708,6 @@ const ComplianceDashboard = () => {
                         )
                       }
                       className="flex items-center gap-2 bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed text-sm"
-                      disabled={!msalReady}
                     >
                       <Upload className="w-4 h-4" />
                       Upload Files
@@ -1752,17 +1745,17 @@ const ComplianceDashboard = () => {
                     <h4 className="text-lg font-medium text-gray-900 mb-2">
                       Authentication Required
                     </h4>
+                    {/* --- THIS IS THE CRASH FIX (</p>) --- */}
                     <p className="text-gray-600 mb-4">
                       You need to authenticate with Microsoft to upload files to
                       OneDrive.
                     </p>
-                    {/* Call Microsoft login, check msalReady */}
+                    {/* Call Microsoft login */}
                     <button
                       onClick={loginMicrosoft}
-                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!msalReady}
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
                     >
-                      {msalReady ? "Login with Microsoft" : "Loading..."}
+                      Login with Microsoft
                     </button>
                   </div>
                 ) : (
