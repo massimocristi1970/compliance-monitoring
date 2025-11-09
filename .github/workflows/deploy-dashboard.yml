@@ -27,13 +27,9 @@ jobs:
         with:
           node-version: '18'
       
-      # --- THIS IS THE FIX ---
-      # Changed back to 'npm ci' which is the correct
-      # standard for build servers.
       - name: Install dependencies
         run: npm ci
         working-directory: dashboard
-      # --- END OF FIX ---
         
       - name: Generate cache-busting timestamp
         run: echo "VITE_BUILD_TIME=$(date +%s)" >> $GITHUB_ENV  
