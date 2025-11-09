@@ -633,13 +633,19 @@ const ComplianceDashboard = () => {
       return tokenResponse;
     } catch (error) {
       console.warn("Silent token acquisition failed: ", error);
-      // Fallback to popup for token refresh if silent fails
+      // Fallback to REDIRECT if silent fails
       if (error.name === "InteractionRequiredAuthError") {
         try {
-          const tokenResponse = await msalInstance.acquireTokenPopup(request);
-          return tokenResponse;
-        } catch (popupError) {
-          console.error("Popup token acquisition failed: ", popupError);
+          // --- THIS IS THE FIX ---
+          // Using redirect instead of popup for token refresh
+          await msalInstance.acquireTokenRedirect(request);
+          // Note: This will cause a full-page redirect.
+          // The handleRedirectPromise in useEffect will catch the response
+          // when the page reloads. The user may need to click "upload" again,
+          // but this time it will have the token.
+          // --- END OF FIX ---
+        } catch (redirectError) {
+          console.error("Redirect token acquisition failed: ", redirectError);
           throw new Error("Could not acquire token for Microsoft Graph.");
         }
       } else {
