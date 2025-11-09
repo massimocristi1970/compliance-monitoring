@@ -1726,9 +1726,7 @@ const ComplianceDashboard = () => {
                   >
                     <option value="pending">Pending</option>
                     <option value="completed">Completed</option>
-                    {/* --- THIS IS THE CRITICAL FIX --- */}
                     <option value="overdue">Overdue</option>
-                    {/* --- END OF FIX --- */}
                     <option value="due_soon">Due Soon</option>
                     <option value="monitoring">Monitoring</option>
                   </select>
