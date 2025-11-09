@@ -628,14 +628,14 @@ const ComplianceDashboard = () => {
     };
 
     try {
+      // Try to get token silently
       const tokenResponse = await msalInstance.acquireTokenSilent(request);
       return tokenResponse;
     } catch (error) {
       console.warn("Silent token acquisition failed: ", error);
+      // Fallback to popup for token refresh if silent fails
       if (error.name === "InteractionRequiredAuthError") {
         try {
-          // --- THIS IS THE 2ND FIX ---
-          // Fallback to popup for token refresh.
           const tokenResponse = await msalInstance.acquireTokenPopup(request);
           return tokenResponse;
         } catch (popupError) {
