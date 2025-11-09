@@ -27,9 +27,12 @@ jobs:
         with:
           node-version: '18'
       
-      # --- THIS IS THE FIX ---
-      - name: Install dependencies
-        run: npm ci  # Changed from 'npm install' to 'npm ci'
+      # --- THIS IS THE NEW FIX ---
+      # Replaces the 'npm ci' step. This is more aggressive.
+      - name: Force Clean Install
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
         working-directory: dashboard
       # --- END OF FIX ---
         
