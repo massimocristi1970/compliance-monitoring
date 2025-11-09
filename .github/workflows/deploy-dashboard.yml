@@ -27,9 +27,11 @@ jobs:
         with:
           node-version: '18'
       
+      # --- THIS IS THE FIX ---
       - name: Install dependencies
-        run: npm install
+        run: npm ci  # Changed from 'npm install' to 'npm ci'
         working-directory: dashboard
+      # --- END OF FIX ---
         
       - name: Generate cache-busting timestamp
         run: echo "VITE_BUILD_TIME=$(date +%s)" >> $GITHUB_ENV  
@@ -39,7 +41,7 @@ jobs:
         working-directory: dashboard
         env:
           VITE_BUILD_TIME: ${{ env.VITE_BUILD_TIME }}
-              
+            
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
