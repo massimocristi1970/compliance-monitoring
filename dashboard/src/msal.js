@@ -8,28 +8,29 @@ const msalConfig = {
     // Your Application (client) ID
     clientId: "de33a5a5-0b65-47b8-a09d-fbc5d152930d",
 
-    // Your Directory (tenant) ID. This ensures only users from
-    // your work organization can log in.
+    // Your Directory (tenant) ID.
     authority:
       "https://login.microsoftonline.com/ae2211da-bf1e-486f-a627-2bc81566edf7",
 
-    // Your Redirect URI from the previous step
+    // Your Redirect URI
     redirectUri: "http://localhost:5173/compliance-monitoring/",
   },
   cache: {
-    cacheLocation: "sessionStorage", // This is more secure than localStorage
+    cacheLocation: "sessionStorage",
     storeAuthStateInCookie: false,
   },
 };
 
 /**
  * Scopes define the permissions your app needs.
- * For OneDrive, we need Files.ReadWrite.
- * (Make sure you added 'Files.ReadWrite' in the 'API permissions' tab in Entra)
  */
 export const loginRequest = {
   scopes: ["User.Read", "Files.ReadWrite"],
 };
 
-// Create the MSAL instance
+// --- THIS IS THE FIX ---
+// We create the instance AND export a promise that resolves
+// when initialization is complete.
 export const msalInstance = new PublicClientApplication(msalConfig);
+export const msalInitPromise = msalInstance.initialize();
+// --- END OF FIX ---

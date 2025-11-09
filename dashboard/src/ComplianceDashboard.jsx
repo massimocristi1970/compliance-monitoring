@@ -41,7 +41,7 @@ import {
 import { GithubAuthProvider } from "firebase/auth";
 import AdminPanel from "./AdminPanel";
 // MSAL (Microsoft) imports
-import { msalInstance, loginRequest } from "./msal";
+import { msalInstance, loginRequest, msalInitPromise } from "./msal";
 
 const ComplianceDashboard = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -58,7 +58,7 @@ const ComplianceDashboard = () => {
   const [error, setError] = useState(null);
   const [isAdminMode, setIsAdminMode] = useState(false);
 
-  // OAuth state for GitHub (unchanged)
+  // OAuth state for GitHub
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
@@ -66,6 +66,9 @@ const ComplianceDashboard = () => {
   // OAuth state for Microsoft
   const [isMicrosoftAuth, setIsMicrosoftAuth] = useState(false);
   const [microsoftAccount, setMicrosoftAccount] = useState(null);
+
+  // State to track if MSAL is ready
+  const [msalReady, setMsalReady] = useState(false);
 
   const [assignees, setAssignees] = useState([]);
   const [businessAreas, setBusinessAreas] = useState([]);
@@ -93,7 +96,7 @@ const ComplianceDashboard = () => {
     loadSummaryData();
   }, []);
 
-  // Firebase listener to manage authentication state (CORRECTED VERSION)
+  // Firebase listener to manage authentication state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -109,7 +112,6 @@ const ComplianceDashboard = () => {
 
         setUser(userData);
 
-        // Retrieve token from sessionStorage
         const storedToken = sessionStorage.getItem("github_access_token");
         if (storedToken) {
           setAccessToken(storedToken);
@@ -131,39 +133,50 @@ const ComplianceDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // MSAL listener to manage authentication state
+  // MSAL listener now waits for the init promise
   useEffect(() => {
-    // Check if a user is already signed in to Microsoft
-    const currentAccount = msalInstance.getActiveAccount();
-    if (currentAccount) {
-      setMicrosoftAccount(currentAccount);
-      setIsMicrosoftAuth(true);
-      console.log("Microsoft user restored from session:", currentAccount.name);
-    } else {
-      // Check session storage (in case active account isn't set)
-      const storedAccount = sessionStorage.getItem("ms_account");
-      if (storedAccount) {
-        const account = JSON.parse(storedAccount);
-        setMicrosoftAccount(account);
-        setIsMicrosoftAuth(true);
-        msalInstance.setActiveAccount(account);
-        console.log(
-          "Microsoft user restored from sessionStorage:",
-          account.name
-        );
-      }
-    }
-  }, []);
+    msalInitPromise
+      .then(() => {
+        setMsalReady(true); // Mark MSAL as ready
+        console.log("MSAL initialized.");
+
+        // Now we can safely check for an account
+        const currentAccount = msalInstance.getActiveAccount();
+        if (currentAccount) {
+          setMicrosoftAccount(currentAccount);
+          setIsMicrosoftAuth(true);
+          console.log(
+            "Microsoft user restored from session:",
+            currentAccount.name
+          );
+        } else {
+          // Check session storage (in case active account isn't set)
+          const storedAccount = sessionStorage.getItem("ms_account");
+          if (storedAccount) {
+            const account = JSON.parse(storedAccount);
+            setMicrosoftAccount(account);
+            setIsMicrosoftAuth(true);
+            msalInstance.setActiveAccount(account);
+            console.log(
+              "Microsoft user restored from sessionStorage:",
+              account.name
+            );
+          }
+        }
+      })
+      .catch((err) => {
+        console.error("MSAL initialization failed:", err);
+        alert("Could not initialize Microsoft login. Please refresh the page.");
+      });
+  }, []); // Runs once on mount
 
   const login = async () => {
     try {
       const result = await signInWithPopup(auth, githubProvider);
 
-      // Extract the token directly from the sign-in result
       const credential = GithubAuthProvider.credentialFromResult(result);
       const token = credential.accessToken;
 
-      // Store token in sessionStorage for persistence
       if (token) {
         sessionStorage.setItem("github_access_token", token);
         setAccessToken(token);
@@ -182,12 +195,15 @@ const ComplianceDashboard = () => {
 
   // Microsoft Login function
   const loginMicrosoft = async () => {
+    if (!msalReady) {
+      alert("Microsoft login is not ready yet. Please wait a moment.");
+      return;
+    }
     try {
       const loginResponse = await msalInstance.loginPopup(loginRequest);
       console.log("Microsoft login successful:", loginResponse.account);
       setMicrosoftAccount(loginResponse.account);
       setIsMicrosoftAuth(true);
-      // Store in session storage for persistence
       sessionStorage.setItem(
         "ms_account",
         JSON.stringify(loginResponse.account)
@@ -232,7 +248,6 @@ const ComplianceDashboard = () => {
       setIsMicrosoftAuth(false);
     }
 
-    // Clear other items
     sessionStorage.removeItem("oauth_state");
   };
 
@@ -247,13 +262,11 @@ const ComplianceDashboard = () => {
 
     console.log("⚠️ Found checks with null checkRef, auto-fixing...");
 
-    // Find the highest existing checkRef
     let maxRef = Math.max(
       0,
       ...data.filter((check) => check.checkRef).map((check) => check.checkRef)
     );
 
-    // Assign new checkRefs to null entries
     const fixedData = data.map((check) => {
       if (!check.checkRef || check.checkRef === null) {
         maxRef++;
@@ -281,10 +294,8 @@ const ComplianceDashboard = () => {
     try {
       setLoading(true);
 
-      // Load compliance checks from GitHub Issues
       const issuesData = await loadFromGitHubIssues("Compliance Data");
       if (issuesData && Array.isArray(issuesData)) {
-        // Auto-fix null checkRefs
         const fixedData = fixNullCheckRefs(issuesData);
         setComplianceData(fixedData);
         console.log(
@@ -296,7 +307,6 @@ const ComplianceDashboard = () => {
 
         if (response.ok) {
           const data = await response.json();
-          // Auto-fix null checkRefs
           const fixedData = fixNullCheckRefs(data);
           setComplianceData(fixedData);
           console.log(
@@ -312,18 +322,15 @@ const ComplianceDashboard = () => {
         }
       }
 
-      // Load admin configuration (assignees and business areas) from GitHub Issues
       const adminConfig = await loadFromGitHubIssues("Admin Configuration");
       if (adminConfig) {
         console.log("📋 Loaded admin configuration from GitHub Issues");
 
-        // Update assignees if they exist in admin config
         if (adminConfig.assignees && Array.isArray(adminConfig.assignees)) {
           setAssignees(adminConfig.assignees);
           console.log(`👥 Loaded ${adminConfig.assignees.length} assignees`);
         }
 
-        // Update business areas if they exist in admin config
         if (
           adminConfig.businessAreas &&
           Array.isArray(adminConfig.businessAreas)
@@ -500,7 +507,6 @@ const ComplianceDashboard = () => {
     console.log(`📝 Updated local check ${checkRef}:`, updates);
   };
 
-  // This function is still used for saving notes/status
   const saveComplianceDataToGitHub = async (dataToSave) => {
     // Note: This function requires GitHub auth
     if (!isAuthenticated || !accessToken) {
@@ -614,6 +620,10 @@ const ComplianceDashboard = () => {
 
   // Helper function to get a Microsoft Graph token
   const getMicrosoftToken = async () => {
+    if (!msalReady) {
+      console.error("MSAL is not ready.");
+      throw new Error("MSAL is not ready.");
+    }
     const account = msalInstance.getActiveAccount();
     if (!account) {
       throw new Error("No active Microsoft account! Please log in again.");
@@ -625,14 +635,12 @@ const ComplianceDashboard = () => {
     };
 
     try {
-      // Try to get token silently
       const tokenResponse = await msalInstance.acquireTokenSilent(request);
       return tokenResponse;
     } catch (error) {
       console.warn("Silent token acquisition failed: ", error);
       if (error.name === "InteractionRequiredAuthError") {
         try {
-          // Fallback to popup
           const tokenResponse = await msalInstance.acquireTokenPopup(request);
           return tokenResponse;
         } catch (popupError) {
@@ -1163,7 +1171,7 @@ const ComplianceDashboard = () => {
                 </button>
               )}
 
-              {/* Microsoft Auth Status / Button */}
+              {/* Microsoft Auth Button now disabled until ready */}
               {isMicrosoftAuth ? (
                 <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
                   <CheckCircle className="w-4 h-4 text-blue-600" />
@@ -1174,10 +1182,11 @@ const ComplianceDashboard = () => {
               ) : (
                 <button
                   onClick={loginMicrosoft}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!msalReady} // Disable button until MSAL is ready
                 >
                   <Cloud className="w-4 h-4" />
-                  Login (Microsoft)
+                  {msalReady ? "Login (Microsoft)" : "Loading MS..."}
                 </button>
               )}
 
@@ -1250,6 +1259,7 @@ const ComplianceDashboard = () => {
           </div>
         )}
 
+        {/* Show loading state for MS login */}
         {!isMicrosoftAuth && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div className="flex items-center gap-2">
@@ -1259,7 +1269,9 @@ const ComplianceDashboard = () => {
               </h3>
             </div>
             <p className="text-blue-700 text-sm mt-1">
-              Login with your Microsoft account to upload files to OneDrive.
+              {msalReady
+                ? "Login with your Microsoft account to upload files to OneDrive."
+                : "Initializing Microsoft login..."}
             </p>
           </div>
         )}
@@ -1535,6 +1547,7 @@ const ComplianceDashboard = () => {
                               }
                               className="text-gray-400 cursor-not-allowed"
                               title="Login required"
+                              disabled={!msalReady}
                             >
                               Upload
                             </button>
@@ -1760,6 +1773,7 @@ const ComplianceDashboard = () => {
                         )
                       }
                       className="flex items-center gap-2 bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed text-sm"
+                      disabled={!msalReady}
                     >
                       <Upload className="w-4 h-4" />
                       Upload Files
@@ -1801,12 +1815,13 @@ const ComplianceDashboard = () => {
                       You need to authenticate with Microsoft to upload files to
                       OneDrive.
                     </p>
-                    {/* Call Microsoft login */}
+                    {/* Call Microsoft login, check msalReady */}
                     <button
                       onClick={loginMicrosoft}
-                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!msalReady}
                     >
-                      Login with Microsoft
+                      {msalReady ? "Login with Microsoft" : "Loading..."}
                     </button>
                   </div>
                 ) : (
