@@ -67,6 +67,11 @@ const ComplianceDashboard = () => {
   const [isMicrosoftAuth, setIsMicrosoftAuth] = useState(false);
   const [microsoftAccount, setMicrosoftAccount] = useState(null);
 
+  // --- THIS IS THE FIX ---
+  // State to track if MSAL is ready
+  const [msalReady, setMsalReady] = useState(false);
+  // --- END OF FIX ---
+
   const [assignees, setAssignees] = useState([]);
   const [businessAreas, setBusinessAreas] = useState([]);
   const [editingNotes, setEditingNotes] = useState("");
@@ -130,16 +135,32 @@ const ComplianceDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // MSAL listener to check for active account on load
+  // --- THIS IS THE FIX ---
+  // MSAL initialization flow
   useEffect(() => {
-    // Check if a user is already signed in to Microsoft
-    const currentAccount = msalInstance.getActiveAccount();
-    if (currentAccount) {
-      setMicrosoftAccount(currentAccount);
-      setIsMicrosoftAuth(true);
-      console.log("Microsoft user restored from session:", currentAccount.name);
-    }
+    msalInstance
+      .initialize()
+      .then(() => {
+        setMsalReady(true);
+        console.log("MSAL initialized.");
+        
+        // Now it's safe to check for an account
+        const currentAccount = msalInstance.getActiveAccount();
+        if (currentAccount) {
+          setMicrosoftAccount(currentAccount);
+          setIsMicrosoftAuth(true);
+          console.log(
+            "Microsoft user restored from session:",
+            currentAccount.name
+          );
+        }
+      })
+      .catch((err) => {
+        console.error("MSAL initialization failed:", err);
+        alert("Could not initialize Microsoft login. Please refresh the page.");
+      });
   }, []); // Runs once on mount
+  // --- END OF FIX ---
 
   const login = async () => {
     try {
@@ -164,9 +185,15 @@ const ComplianceDashboard = () => {
     }
   };
 
-  // --- Using loginPopup ---
-  // This will now work because of the auth.html redirect
+  // Using loginPopup
   const loginMicrosoft = async () => {
+    // --- THIS IS THE FIX ---
+    // Check if MSAL is ready before trying to log in
+    if (!msalReady) {
+      alert("Microsoft login is not ready yet. Please wait a moment.");
+      return;
+    }
+    // --- END OF FIX ---
     try {
       const loginResponse = await msalInstance.loginPopup(loginRequest);
       console.log("Microsoft login successful:", loginResponse.account);
@@ -196,7 +223,7 @@ const ComplianceDashboard = () => {
 
     // Clear Microsoft session
     if (msalInstance.getActiveAccount()) {
-      // --- Using logoutPopup ---
+      // Using logoutPopup
       msalInstance.logoutPopup().then(() => {
           console.log("User signed out from Microsoft successfully.");
           setMicrosoftAccount(null);
@@ -1132,10 +1159,11 @@ const ComplianceDashboard = () => {
               ) : (
                 <button
                   onClick={loginMicrosoft}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!msalReady} // Disable button until MSAL is ready
                 >
                   <Cloud className="w-4 h-4" />
-                  Login (Microsoft)
+                  {msalReady ? "Login (Microsoft)" : "Loading MS..."}
                 </button>
               )}
 
@@ -1218,7 +1246,9 @@ const ComplianceDashboard = () => {
               </h3>
             </div>
             <p className="text-blue-700 text-sm mt-1">
-              Login with your Microsoft account to upload files to OneDrive.
+              {msalReady
+                ? "Login with your Microsoft account to upload files to OneDrive."
+                : "Initializing Microsoft login..."}
             </p>
           </div>
         )}
@@ -1494,6 +1524,7 @@ const ComplianceDashboard = () => {
                               }
                               className="text-gray-400 cursor-not-allowed"
                               title="Login required"
+                              disabled={!msalReady}
                             >
                               Upload
                             </button>
@@ -1686,7 +1717,9 @@ const ComplianceDashboard = () => {
                   >
                     <option value="pending">Pending</option>
                     <option value="completed">Completed</option>
+                    {/* --- THIS IS THE CRASH FIX --- */}
                     <option value="overdue">Overdue</option>
+                    {/* --- END OF FIX --- */}
                     <option value="due_soon">Due Soon</option>
                     <option value="monitoring">Monitoring</option>
                   </select>
@@ -1708,6 +1741,7 @@ const ComplianceDashboard = () => {
                         )
                       }
                       className="flex items-center gap-2 bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed text-sm"
+                      disabled={!msalReady}
                     >
                       <Upload className="w-4 h-4" />
                       Upload Files
@@ -1745,17 +1779,18 @@ const ComplianceDashboard = () => {
                     <h4 className="text-lg font-medium text-gray-900 mb-2">
                       Authentication Required
                     </h4>
-                    {/* --- THIS IS THE CRASH FIX (</p>) --- */}
+                    {/* --- THIS IS THE CRASH FIX --- */}
                     <p className="text-gray-600 mb-4">
                       You need to authenticate with Microsoft to upload files to
                       OneDrive.
                     </p>
-                    {/* Call Microsoft login */}
+                    {/* Call Microsoft login, check msalReady */}
                     <button
                       onClick={loginMicrosoft}
-                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!msalReady}
                     >
-                      Login with Microsoft
+                      {msalReady ? "Login with Microsoft" : "Loading..."}
                     </button>
                   </div>
                 ) : (
