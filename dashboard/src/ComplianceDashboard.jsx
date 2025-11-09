@@ -133,7 +133,7 @@ const ComplianceDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // --- MODIFIED --- This is the new MSAL initialization flow
+  // MSAL initialization flow
   useEffect(() => {
     msalInstance
       .initialize()
@@ -198,7 +198,7 @@ const ComplianceDashboard = () => {
     }
   };
 
-  // --- MODIFIED --- Use loginRedirect instead of loginPopup
+  // Use loginRedirect instead of loginPopup
   const loginMicrosoft = async () => {
     if (!msalReady) {
       alert("Microsoft login is not ready yet. Please wait a moment.");
@@ -232,7 +232,7 @@ const ComplianceDashboard = () => {
     // Clear Microsoft session
     sessionStorage.removeItem("ms_account");
     if (msalInstance.getActiveAccount()) {
-      // --- MODIFIED --- Use logoutRedirect
+      // Use logoutRedirect
       msalInstance.logoutRedirect().catch((e) => {
         console.error("Microsoft Sign-out error:", e);
       });
@@ -634,13 +634,12 @@ const ComplianceDashboard = () => {
       console.warn("Silent token acquisition failed: ", error);
       if (error.name === "InteractionRequiredAuthError") {
         try {
-          // --- MODIFIED --- Fallback to redirect instead of popup
-          const tokenResponse = await msalInstance.acquireTokenRedirect(
-            request
-          );
+          // --- THIS IS THE 2ND FIX ---
+          // Fallback to popup for token refresh.
+          const tokenResponse = await msalInstance.acquireTokenPopup(request);
           return tokenResponse;
-        } catch (redirectError) {
-          console.error("Redirect token acquisition failed: ", redirectError);
+        } catch (popupError) {
+          console.error("Popup token acquisition failed: ", popupError);
           throw new Error("Could not acquire token for Microsoft Graph.");
         }
       } else {
@@ -1479,7 +1478,7 @@ const ComplianceDashboard = () => {
                           {check.businessArea}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowFrap text-sm text-gray-500">
                         {check.responsibility}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -1727,7 +1726,9 @@ const ComplianceDashboard = () => {
                   >
                     <option value="pending">Pending</option>
                     <option value="completed">Completed</option>
-                    <option valueA="overdue">Overdue</option>
+                    {/* --- THIS IS THE FIX --- */}
+                    <option value="overdue">Overdue</option>
+                    {/* --- END OF FIX --- */}
                     <option value="due_soon">Due Soon</option>
                     <option value="monitoring">Monitoring</option>
                   </select>
