@@ -608,6 +608,14 @@ const ComplianceDashboard = () => {
 
   // Helper function to get a Microsoft Graph token
   const getMicrosoftToken = async () => {
+    // --- THIS IS THE FIX ---
+    // Check if MSAL is ready before trying to get a token
+    if (!msalReady) {
+      console.error("MSAL is not ready.");
+      throw new Error("MSAL is not ready.");
+    }
+    // --- END OF FIX ---
+
     const account = msalInstance.getActiveAccount();
     if (!account) {
       throw new Error("No active Microsoft account! Please log in again.");
@@ -1717,9 +1725,7 @@ const ComplianceDashboard = () => {
                   >
                     <option value="pending">Pending</option>
                     <option value="completed">Completed</option>
-                    {/* --- THIS IS THE CRASH FIX --- */}
                     <option value="overdue">Overdue</option>
-                    {/* --- END OF FIX --- */}
                     <option value="due_soon">Due Soon</option>
                     <option value="monitoring">Monitoring</option>
                   </select>
@@ -1779,7 +1785,6 @@ const ComplianceDashboard = () => {
                     <h4 className="text-lg font-medium text-gray-900 mb-2">
                       Authentication Required
                     </h4>
-                    {/* --- THIS IS THE CRASH FIX --- */}
                     <p className="text-gray-600 mb-4">
                       You need to authenticate with Microsoft to upload files to
                       OneDrive.
