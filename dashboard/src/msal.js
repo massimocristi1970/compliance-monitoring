@@ -1,22 +1,20 @@
 import { PublicClientApplication } from "@azure/msal-browser";
 
-// --- PASTE YOUR CLIENT ID HERE ---
-// You get this from the Azure Portal
-const MSAL_CLIENT_ID = "YOUR_AZURE_APP_CLIENT_ID_GOES_HERE";
-
 /**
  * Configuration object to be passed to MSAL instance on creation.
- * For a full list of MSAL.js configuration parameters, visit:
- * https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/lib/msal-browser/docs/configuration.md
  */
 const msalConfig = {
   auth: {
-    clientId: MSAL_CLIENT_ID,
-    // This is for your WORK account.
-    // Replace 'common' with your Tenant ID if you have it.
-    authority: "https://login.microsoftonline.com/common",
-    // This is the page that Azure will redirect back to after login.
-    redirectUri: "http://localhost:3000", // Or your production URL
+    // Your Application (client) ID
+    clientId: "de33a5a5-0b65-47b8-a09d-fbc5d152930d",
+
+    // Your Directory (tenant) ID. This ensures only users from
+    // your work organization can log in.
+    authority:
+      "https://login.microsoftonline.com/ae2211da-bf1e-486f-a627-2bc81566edf7",
+
+    // Your Redirect URI from the previous step
+    redirectUri: "http://localhost:5173/compliance-monitoring/",
   },
   cache: {
     cacheLocation: "sessionStorage", // This is more secure than localStorage
@@ -27,6 +25,7 @@ const msalConfig = {
 /**
  * Scopes define the permissions your app needs.
  * For OneDrive, we need Files.ReadWrite.
+ * (Make sure you added 'Files.ReadWrite' in the 'API permissions' tab in Entra)
  */
 export const loginRequest = {
   scopes: ["User.Read", "Files.ReadWrite"],
