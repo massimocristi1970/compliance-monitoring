@@ -66,9 +66,9 @@ const ComplianceDashboard = () => {
   // OAuth state for Microsoft
   const [isMicrosoftAuth, setIsMicrosoftAuth] = useState(false);
   const [microsoftAccount, setMicrosoftAccount] = useState(null);
-
-  // State to track if MSAL is ready
-  const [msalReady, setMsalReady] = useState(false);
+  
+  // --- This is no longer needed with the popup flow ---
+  // const [msalReady, setMsalReady] = useState(false); 
 
   const [assignees, setAssignees] = useState([]);
   const [businessAreas, setBusinessAreas] = useState([]);
@@ -133,46 +133,15 @@ const ComplianceDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // MSAL initialization flow
+  // MSAL listener to check for active account on load
   useEffect(() => {
-    msalInstance
-      .initialize()
-      .then(() => {
-        // This handles the redirect back from Microsoft
-        msalInstance
-          .handleRedirectPromise()
-          .then((response) => {
-            if (response) {
-              // User just logged in via redirect
-              setMicrosoftAccount(response.account);
-              setIsMicrosoftAuth(true);
-              console.log(
-                "Microsoft user logged in via redirect:",
-                response.account.name
-              );
-            } else {
-              // This is a normal page load. Check for an existing session.
-              const currentAccount = msalInstance.getActiveAccount();
-              if (currentAccount) {
-                setMicrosoftAccount(currentAccount);
-                setIsMicrosoftAuth(true);
-                console.log(
-                  "Microsoft user restored from session:",
-                  currentAccount.name
-                );
-              }
-            }
-            setMsalReady(true);
-          })
-          .catch((err) => {
-            console.error("MSAL redirect handle failed:", err);
-            setMsalReady(true); // Still ready, even if login failed
-          });
-      })
-      .catch((err) => {
-        console.error("MSAL initialization failed:", err);
-        alert("Could not initialize Microsoft login. Please refresh the page.");
-      });
+    // Check if a user is already signed in to Microsoft
+    const currentAccount = msalInstance.getActiveAccount();
+    if (currentAccount) {
+      setMicrosoftAccount(currentAccount);
+      setIsMicrosoftAuth(true);
+      console.log("Microsoft user restored from session:", currentAccount.name);
+    }
   }, []); // Runs once on mount
 
   const login = async () => {
@@ -198,15 +167,14 @@ const ComplianceDashboard = () => {
     }
   };
 
-  // Use loginRedirect instead of loginPopup
+  // --- REVERTED TO loginPopup ---
+  // This will now work because of the auth.html redirect
   const loginMicrosoft = async () => {
-    if (!msalReady) {
-      alert("Microsoft login is not ready yet. Please wait a moment.");
-      return;
-    }
     try {
-      // This will navigate the whole page away
-      await msalInstance.loginRedirect(loginRequest);
+      const loginResponse = await msalInstance.loginPopup(loginRequest);
+      console.log("Microsoft login successful:", loginResponse.account);
+      setMicrosoftAccount(loginResponse.account);
+      setIsMicrosoftAuth(true);
     } catch (err) {
       console.error("Microsoft login failed:", err);
       alert("Microsoft login failed: " + err.message);
@@ -230,12 +198,15 @@ const ComplianceDashboard = () => {
       });
 
     // Clear Microsoft session
-    sessionStorage.removeItem("ms_account");
     if (msalInstance.getActiveAccount()) {
-      // Use logoutRedirect
-      msalInstance.logoutRedirect().catch((e) => {
-        console.error("Microsoft Sign-out error:", e);
-      });
+      // --- REVERTED TO logoutPopup ---
+      msalInstance.logoutPopup().then(() => {
+          console.log("User signed out from Microsoft successfully.");
+          setMicrosoftAccount(null);
+          setIsMicrosoftAuth(false);
+        }).catch((e) => {
+          console.error("Microsoft Sign-out error:", e);
+        });
     } else {
       setMicrosoftAccount(null);
       setIsMicrosoftAuth(false);
@@ -613,10 +584,6 @@ const ComplianceDashboard = () => {
 
   // Helper function to get a Microsoft Graph token
   const getMicrosoftToken = async () => {
-    if (!msalReady) {
-      console.error("MSAL is not ready.");
-      throw new Error("MSAL is not ready.");
-    }
     const account = msalInstance.getActiveAccount();
     if (!account) {
       throw new Error("No active Microsoft account! Please log in again.");
@@ -633,19 +600,13 @@ const ComplianceDashboard = () => {
       return tokenResponse;
     } catch (error) {
       console.warn("Silent token acquisition failed: ", error);
-      // Fallback to REDIRECT if silent fails
+      // Fallback to popup for token refresh if silent fails
       if (error.name === "InteractionRequiredAuthError") {
         try {
-          // --- THIS IS THE FIX ---
-          // Using redirect instead of popup for token refresh
-          await msalInstance.acquireTokenRedirect(request);
-          // Note: This will cause a full-page redirect.
-          // The handleRedirectPromise in useEffect will catch the response
-          // when the page reloads. The user may need to click "upload" again,
-          // but this time it will have the token.
-          // --- END OF FIX ---
-        } catch (redirectError) {
-          console.error("Redirect token acquisition failed: ", redirectError);
+          const tokenResponse = await msalInstance.acquireTokenPopup(request);
+          return tokenResponse;
+        } catch (popupError) {
+          console.error("Popup token acquisition failed: ", popupError);
           throw new Error("Could not acquire token for Microsoft Graph.");
         }
       } else {
@@ -712,8 +673,8 @@ const ComplianceDashboard = () => {
       // 2. Update the compliance data state
       const updates = {
         files: [
-          ...(complianceData.find((item) => item.checkRef === checkRef)
-            ?.files || []),
+          ...(complianceData.find((item) => item.checkRef === checkRef)?.files ||
+            []),
           ...uploadedFiles,
         ],
         status: "completed",
@@ -1174,11 +1135,10 @@ const ComplianceDashboard = () => {
               ) : (
                 <button
                   onClick={loginMicrosoft}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!msalReady} // Disable button until MSAL is ready
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
                 >
                   <Cloud className="w-4 h-4" />
-                  {msalReady ? "Login (Microsoft)" : "Loading MS..."}
+                  Login (Microsoft)
                 </button>
               )}
 
@@ -1261,9 +1221,7 @@ const ComplianceDashboard = () => {
               </h3>
             </div>
             <p className="text-blue-700 text-sm mt-1">
-              {msalReady
-                ? "Login with your Microsoft account to upload files to OneDrive."
-                : "Initializing Microsoft login..."}
+              Login with your Microsoft account to upload files to OneDrive.
             </p>
           </div>
         )}
@@ -1732,7 +1690,9 @@ const ComplianceDashboard = () => {
                   >
                     <option value="pending">Pending</option>
                     <option value="completed">Completed</option>
+                    {/* --- THIS IS THE CRASH FIX --- */}
                     <option value="overdue">Overdue</option>
+                    {/* --- END OF FIX --- */}
                     <option value="due_soon">Due Soon</option>
                     <option value="monitoring">Monitoring</option>
                   </select>
