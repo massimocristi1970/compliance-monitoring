@@ -1478,7 +1478,7 @@ const ComplianceDashboard = () => {
                           {check.businessArea}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowFrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {check.responsibility}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -1726,7 +1726,7 @@ const ComplianceDashboard = () => {
                   >
                     <option value="pending">Pending</option>
                     <option value="completed">Completed</option>
-                    {/* --- THIS IS THE FIX --- */}
+                    {/* --- THIS IS THE CRITICAL FIX --- */}
                     <option value="overdue">Overdue</option>
                     {/* --- END OF FIX --- */}
                     <option value="due_soon">Due Soon</option>
