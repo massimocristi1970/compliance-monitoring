@@ -41,7 +41,7 @@ import {
 import { GithubAuthProvider } from "firebase/auth";
 import AdminPanel from "./AdminPanel";
 // MSAL (Microsoft) imports
-import { msalInstance, loginRequest } from "./msal";
+import { msalInstance, msalInit, loginRequest } from "./msal";
 
 const ComplianceDashboard = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -69,7 +69,7 @@ const ComplianceDashboard = () => {
 
   // --- THIS IS THE FIX ---
   // State to track if MSAL is ready
-  const [msalReady, setMsalReady] = useState(true); // simple flag so buttons don’t crash
+  const [msalReady, setMsalReady] = useState(false); // was true
   // --- END OF FIX ---
 
   const [assignees, setAssignees] = useState([]);
@@ -136,18 +136,36 @@ const ComplianceDashboard = () => {
   }, []);
 
   useEffect(() => {
-    const active = msalInstance.getActiveAccount();
-    if (active) {
-      setMicrosoftAccount(active);
-      setIsMicrosoftAuth(true);
-    } else {
-      const accts = msalInstance.getAllAccounts();
-      if (accts.length) {
-        msalInstance.setActiveAccount(accts[0]);
-        setMicrosoftAccount(accts[0]);
-        setIsMicrosoftAuth(true);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // ✅ wait for MSAL to initialize
+        await msalInit;
+
+        // Restore an account if available
+        const active = msalInstance.getActiveAccount();
+        if (active) {
+          setMicrosoftAccount(active);
+          setIsMicrosoftAuth(true);
+        } else {
+          const accounts = msalInstance.getAllAccounts();
+          if (accounts.length) {
+            msalInstance.setActiveAccount(accounts[0]);
+            setMicrosoftAccount(accounts[0]);
+            setIsMicrosoftAuth(true);
+          }
+        }
+      } catch (e) {
+        console.error("MSAL init failed:", e);
+      } finally {
+        if (!cancelled) setMsalReady(true); // UI can enable MS login now
       }
-    }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = async () => {
@@ -174,9 +192,13 @@ const ComplianceDashboard = () => {
   };
 
   const loginMicrosoft = async () => {
+    if (!msalReady) {
+      alert("Microsoft login is still initialising. Try again in a moment.");
+      return;
+    }
     try {
       const loginResponse = await msalInstance.loginPopup(loginRequest);
-      msalInstance.setActiveAccount(loginResponse.account); // ✅ important
+      msalInstance.setActiveAccount(loginResponse.account); // ✅ required
       setMicrosoftAccount(loginResponse.account);
       setIsMicrosoftAuth(true);
     } catch (err) {
