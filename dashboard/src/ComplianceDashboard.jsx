@@ -69,7 +69,7 @@ const ComplianceDashboard = () => {
 
   // --- THIS IS THE FIX ---
   // State to track if MSAL is ready
-  const [msalReady, setMsalReady] = useState(false);
+  const [msalReady, setMsalReady] = useState(true); // simple flag so buttons don’t crash
   // --- END OF FIX ---
 
   const [assignees, setAssignees] = useState([]);
@@ -135,32 +135,20 @@ const ComplianceDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // --- THIS IS THE FIX ---
-  // MSAL initialization flow
   useEffect(() => {
-    msalInstance
-      .initialize()
-      .then(() => {
-        setMsalReady(true);
-        console.log("MSAL initialized.");
-        
-        // Now it's safe to check for an account
-        const currentAccount = msalInstance.getActiveAccount();
-        if (currentAccount) {
-          setMicrosoftAccount(currentAccount);
-          setIsMicrosoftAuth(true);
-          console.log(
-            "Microsoft user restored from session:",
-            currentAccount.name
-          );
-        }
-      })
-      .catch((err) => {
-        console.error("MSAL initialization failed:", err);
-        alert("Could not initialize Microsoft login. Please refresh the page.");
-      });
-  }, []); // Runs once on mount
-  // --- END OF FIX ---
+    const active = msalInstance.getActiveAccount();
+    if (active) {
+      setMicrosoftAccount(active);
+      setIsMicrosoftAuth(true);
+    } else {
+      const accts = msalInstance.getAllAccounts();
+      if (accts.length) {
+        msalInstance.setActiveAccount(accts[0]);
+        setMicrosoftAccount(accts[0]);
+        setIsMicrosoftAuth(true);
+      }
+    }
+  }, []);
 
   const login = async () => {
     try {
@@ -185,18 +173,10 @@ const ComplianceDashboard = () => {
     }
   };
 
-  // Using loginPopup
   const loginMicrosoft = async () => {
-    // --- THIS IS THE FIX ---
-    // Check if MSAL is ready before trying to log in
-    if (!msalReady) {
-      alert("Microsoft login is not ready yet. Please wait a moment.");
-      return;
-    }
-    // --- END OF FIX ---
     try {
       const loginResponse = await msalInstance.loginPopup(loginRequest);
-      console.log("Microsoft login successful:", loginResponse.account);
+      msalInstance.setActiveAccount(loginResponse.account); // ✅ important
       setMicrosoftAccount(loginResponse.account);
       setIsMicrosoftAuth(true);
     } catch (err) {
@@ -224,11 +204,14 @@ const ComplianceDashboard = () => {
     // Clear Microsoft session
     if (msalInstance.getActiveAccount()) {
       // Using logoutPopup
-      msalInstance.logoutPopup().then(() => {
+      msalInstance
+        .logoutPopup()
+        .then(() => {
           console.log("User signed out from Microsoft successfully.");
           setMicrosoftAccount(null);
           setIsMicrosoftAuth(false);
-        }).catch((e) => {
+        })
+        .catch((e) => {
           console.error("Microsoft Sign-out error:", e);
         });
     } else {
@@ -608,42 +591,18 @@ const ComplianceDashboard = () => {
 
   // Helper function to get a Microsoft Graph token
   const getMicrosoftToken = async () => {
-    // --- THIS IS THE FIX ---
-    // Check if MSAL is ready before trying to get a token
-    if (!msalReady) {
-      console.error("MSAL is not ready.");
-      throw new Error("MSAL is not ready.");
-    }
-    // --- END OF FIX ---
-
     const account = msalInstance.getActiveAccount();
     if (!account) {
       throw new Error("No active Microsoft account! Please log in again.");
     }
-
-    const request = {
-      ...loginRequest,
-      account: account,
-    };
-
+    const request = { ...loginRequest, account };
     try {
-      // Try to get token silently
-      const tokenResponse = await msalInstance.acquireTokenSilent(request);
-      return tokenResponse;
+      return await msalInstance.acquireTokenSilent(request);
     } catch (error) {
-      console.warn("Silent token acquisition failed: ", error);
-      // Fallback to popup for token refresh if silent fails
       if (error.name === "InteractionRequiredAuthError") {
-        try {
-          const tokenResponse = await msalInstance.acquireTokenPopup(request);
-          return tokenResponse;
-        } catch (popupError) {
-          console.error("Popup token acquisition failed: ", popupError);
-          throw new Error("Could not acquire token for Microsoft Graph.");
-        }
-      } else {
-        throw error;
+        return await msalInstance.acquireTokenPopup(request);
       }
+      throw error;
     }
   };
 
@@ -705,8 +664,8 @@ const ComplianceDashboard = () => {
       // 2. Update the compliance data state
       const updates = {
         files: [
-          ...(complianceData.find((item) => item.checkRef === checkRef)?.files ||
-            []),
+          ...(complianceData.find((item) => item.checkRef === checkRef)
+            ?.files || []),
           ...uploadedFiles,
         ],
         status: "completed",
