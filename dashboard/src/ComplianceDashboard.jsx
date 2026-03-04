@@ -654,7 +654,7 @@ const ComplianceDashboard = () => {
           continue; // Skip this file
         }
 
-        const folderPath = `data/${selectedYear}/${months[
+        const folderPath = `Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data/${selectedYear}/${months[
           selectedMonth - 1
         ].toLowerCase()}/check-${checkRef}`;
 
@@ -1794,7 +1794,7 @@ const ComplianceDashboard = () => {
                         :
                       </p>
                       <code className="text-xs bg-gray-100 p-2 rounded block">
-                        data/{selectedYear}/
+                        Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data/{selectedYear}/
                         {months[selectedMonth - 1].toLowerCase()}/check-
                         {selectedCheck.checkRef}/
                       </code>
