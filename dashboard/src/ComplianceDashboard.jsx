@@ -41,7 +41,7 @@ import {
 import { GithubAuthProvider } from "firebase/auth";
 import AdminPanel from "./AdminPanel";
 // MSAL (Microsoft) imports
-import { msalInstance, msalInit, loginRequest } from "./msal";
+import { msalInstance, msalInit, loginRequest, oneDriveConfig } from "./msal";
 
 const ComplianceDashboard = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -654,11 +654,15 @@ const ComplianceDashboard = () => {
           continue; // Skip this file
         }
 
-        const folderPath = `data/${selectedYear}/${months[
+        const folderPath = `Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data/${selectedYear}/${months[
           selectedMonth - 1
         ].toLowerCase()}/check-${checkRef}`;
 
-        const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${folderPath}/${file.name}:/content`;
+        const driveBase = oneDriveConfig.ownerEmail
+          ? `https://graph.microsoft.com/v1.0/users/${oneDriveConfig.ownerEmail}/drive`
+          : "https://graph.microsoft.com/v1.0/me/drive";
+
+        const graphUrl = `${driveBase}/root:/${folderPath}/${file.name}:/content`;
 
         const response = await fetch(graphUrl, {
           method: "PUT",
@@ -786,40 +790,36 @@ const ComplianceDashboard = () => {
       .length,
   };
 
-  const generateWordReport = async () => {
-    // Create the report data (same as JSON version)
-    const report = {
-      period: `${months[selectedMonth - 1]} ${selectedYear}`,
-      generatedDate: new Date().toISOString(),
-      generatedBy: user ? `${user.name || user.login} (OAuth)` : "Anonymous",
-      summary: stats,
+  const buildReportBlob = async (checks, month, year) => {
+    const reportStats = {
+      total: checks.length,
+      completed: checks.filter((c) => c.status === "completed").length,
+      pending: checks.filter((c) => c.status === "pending").length,
+      overdue: checks.filter((c) => c.status === "overdue").length,
+      dueSoon: checks.filter((c) => c.status === "due_soon").length,
+      monitoring: checks.filter((c) => c.status === "monitoring").length,
     };
 
-    // Create Word document
     const doc = new Document({
       sections: [
         {
           properties: {},
           children: [
-            // Title
             new Paragraph({
               text: "Compliance Monitoring Report",
               heading: HeadingLevel.HEADING_1,
               alignment: AlignmentType.CENTER,
             }),
             new Paragraph({
-              text: `Period: ${report.period}`,
+              text: `Period: ${months[month - 1]} ${year}`,
               alignment: AlignmentType.CENTER,
             }),
             new Paragraph({
-              text: `Generated: ${new Date(
-                report.generatedDate
-              ).toLocaleDateString()}`,
+              text: `Generated: ${new Date().toLocaleDateString()}`,
               alignment: AlignmentType.CENTER,
             }),
-            new Paragraph({ text: "" }), // Blank line
+            new Paragraph({ text: "" }),
 
-            // Summary Section
             new Paragraph({
               text: "Summary Statistics",
               heading: HeadingLevel.HEADING_2,
@@ -827,25 +827,25 @@ const ComplianceDashboard = () => {
             new Paragraph({
               children: [
                 new TextRun({ text: "Total Checks: ", bold: true }),
-                new TextRun(stats.total.toString()),
+                new TextRun(reportStats.total.toString()),
               ],
             }),
             new Paragraph({
               children: [
                 new TextRun({ text: "Completed: ", bold: true }),
-                new TextRun(stats.completed.toString()),
+                new TextRun(reportStats.completed.toString()),
               ],
             }),
             new Paragraph({
               children: [
                 new TextRun({ text: "Pending: ", bold: true }),
-                new TextRun(stats.pending.toString()),
+                new TextRun(reportStats.pending.toString()),
               ],
             }),
             new Paragraph({
               children: [
                 new TextRun({ text: "Overdue: ", bold: true }),
-                new TextRun(stats.overdue.toString()),
+                new TextRun(reportStats.overdue.toString()),
               ],
             }),
             new Paragraph({
@@ -853,16 +853,17 @@ const ComplianceDashboard = () => {
                 new TextRun({ text: "Completion Rate: ", bold: true }),
                 new TextRun(
                   `${
-                    stats.total > 0
-                      ? Math.round((stats.completed / stats.total) * 100)
+                    reportStats.total > 0
+                      ? Math.round(
+                          (reportStats.completed / reportStats.total) * 100
+                        )
                       : 0
                   }%`
                 ),
               ],
             }),
-            new Paragraph({ text: "" }), // Blank line
+            new Paragraph({ text: "" }),
 
-            // Checks Table
             new Paragraph({
               text: "Compliance Checks",
               heading: HeadingLevel.HEADING_2,
@@ -870,7 +871,6 @@ const ComplianceDashboard = () => {
             new Table({
               width: { size: 100, type: WidthType.PERCENTAGE },
               rows: [
-                // Header row
                 new TableRow({
                   children: [
                     new TableCell({
@@ -894,8 +894,7 @@ const ComplianceDashboard = () => {
                     }),
                   ],
                 }),
-                // Data rows
-                ...filteredData.map(
+                ...checks.map(
                   (check) =>
                     new TableRow({
                       children: [
@@ -920,16 +919,14 @@ const ComplianceDashboard = () => {
               ],
             }),
 
-            // Comments & Notes Section
-            new Paragraph({ text: "" }), // Blank line
+            new Paragraph({ text: "" }),
             new Paragraph({
               text: "Comments & Notes",
               heading: HeadingLevel.HEADING_2,
             }),
 
-            // Check if there are any comments
             ...(() => {
-              const checksWithComments = filteredData.filter(
+              const checksWithComments = checks.filter(
                 (check) => check.comments
               );
 
@@ -983,11 +980,11 @@ const ComplianceDashboard = () => {
                           noteData.addedAt
                         ).toLocaleString()}`,
                         italics: true,
-                        size: 20, // Smaller font
+                        size: 20,
                       }),
                     ],
                   }),
-                  new Paragraph({ text: "" }), // Blank line between notes
+                  new Paragraph({ text: "" }),
                 ];
               });
             })(),
@@ -996,8 +993,92 @@ const ComplianceDashboard = () => {
       ],
     });
 
-    // Generate and download the document
-    const blob = await Packer.toBlob(doc);
+    return await Packer.toBlob(doc);
+  };
+
+  const uploadReportToOneDrive = async (blob, month, year) => {
+    try {
+      const tokenResponse = await getMicrosoftToken();
+      if (!tokenResponse) {
+        throw new Error("Could not get Microsoft auth token.");
+      }
+
+      const folderPath = `Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data/${year}/${months[
+        month - 1
+      ].toLowerCase()}`;
+      const fileName = `compliance-report-${year}-${month
+        .toString()
+        .padStart(2, "0")}.docx`;
+
+      const driveBase = oneDriveConfig.ownerEmail
+        ? `https://graph.microsoft.com/v1.0/users/${oneDriveConfig.ownerEmail}/drive`
+        : "https://graph.microsoft.com/v1.0/me/drive";
+
+      const graphUrl = `${driveBase}/root:/${folderPath}/${fileName}:/content`;
+
+      const response = await fetch(graphUrl, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${tokenResponse.accessToken}`,
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
+        body: blob,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`OneDrive API Error: ${error.error.message}`);
+      }
+
+      const result = await response.json();
+      console.log(`✅ Report uploaded to OneDrive: ${folderPath}/${fileName}`);
+      return result;
+    } catch (error) {
+      console.error("Failed to upload report to OneDrive:", error);
+      throw error;
+    }
+  };
+
+  const checkAllCompleteAndUploadReport = async (allData, month, year) => {
+    const monthChecks = allData.filter(
+      (item) => item.monthNumber === month && item.year === year
+    );
+
+    if (monthChecks.length === 0) return;
+
+    const allComplete = monthChecks.every(
+      (item) => item.status === "completed"
+    );
+
+    if (!allComplete) return;
+
+    if (!isMicrosoftAuth) {
+      alert(
+        `🎉 All ${monthChecks.length} checks for ${months[month - 1]} ${year} are now complete!\n\nLog in with Microsoft to automatically upload the report to OneDrive.`
+      );
+      return;
+    }
+
+    try {
+      const blob = await buildReportBlob(monthChecks, month, year);
+      await uploadReportToOneDrive(blob, month, year);
+      alert(
+        `🎉 All ${monthChecks.length} checks for ${months[month - 1]} ${year} are complete!\n\n✅ Compliance report has been automatically uploaded to OneDrive:\nTick Tock Loans/Compliance/SLPL Compliance Monitoring/data/${year}/${months[
+          month - 1
+        ].toLowerCase()}/compliance-report-${year}-${month
+          .toString()
+          .padStart(2, "0")}.docx`
+      );
+    } catch (error) {
+      alert(
+        `🎉 All checks complete for ${months[month - 1]} ${year}!\n\n⚠️ Could not auto-upload report: ${error.message}\n\nYou can still export it manually using the Generate Report button.`
+      );
+    }
+  };
+
+  const generateWordReport = async () => {
+    const blob = await buildReportBlob(filteredData, selectedMonth, selectedYear);
     saveAs(
       blob,
       `compliance-report-${selectedYear}-${selectedMonth
@@ -1701,6 +1782,14 @@ const ComplianceDashboard = () => {
 
                       // Pass the new data to the save function
                       await saveComplianceDataToGitHub(updatedData);
+
+                      if (newStatus === "completed") {
+                        await checkAllCompleteAndUploadReport(
+                          updatedData,
+                          selectedMonth,
+                          selectedYear
+                        );
+                      }
                     }}
                     className="flex-1 border border-gray-300 rounded-lg p-2 text-sm"
                   >
@@ -1783,11 +1872,14 @@ const ComplianceDashboard = () => {
                   <>
                     <div className="mb-4">
                       <p className="text-sm text-gray-600 mb-3">
-                        Files will be uploaded to OneDrive by{" "}
-                        {microsoftAccount.name}:
+                        Files will be uploaded to{" "}
+                        {oneDriveConfig.ownerEmail
+                          ? `${oneDriveConfig.ownerEmail}'s OneDrive`
+                          : `OneDrive by ${microsoftAccount.name}`}
+                        :
                       </p>
                       <code className="text-xs bg-gray-100 p-2 rounded block">
-                        data/{selectedYear}/
+                        Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data/{selectedYear}/
                         {months[selectedMonth - 1].toLowerCase()}/check-
                         {selectedCheck.checkRef}/
                       </code>
