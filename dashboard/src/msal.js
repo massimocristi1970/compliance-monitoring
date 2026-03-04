@@ -18,14 +18,21 @@ const msalConfig = {
 };
 
 export const oneDriveConfig = {
-  // Set this to your Microsoft account email/UPN to force ALL uploads to your
-  // OneDrive.  When set, the app enforces that only this account can log in
-  // via Microsoft — other users are prompted to sign in as this account.
-  // This guarantees every upload lands in the owner's OneDrive using the
-  // standard /me/drive/ endpoint (no admin consent required).
-  // Leave empty ("") to allow any Microsoft account (uploads go to their own
-  // OneDrive).
-  ownerEmail: "massimo@ticktockloans.com",
+  // Maps each authorised Microsoft account to the OneDrive folder path where
+  // the compliance data folder lives *in that user's own drive*.
+  // Each user logs in with their own account and uploads via /me/drive/,
+  // so no admin consent or Files.ReadWrite.All scope is needed.
+  //
+  // To add a new team member: share the compliance folder with them in
+  // OneDrive, ask them what path it appears at in their drive, and add
+  // an entry here.
+  authorisedUsers: {
+    "massimo@ticktockloans.com":
+      "Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data",
+    // TODO: Add your team member's email and their path to the shared folder
+    // "colleague@ticktockloans.com":
+    //   "Shared/Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data",
+  },
 };
 
 export const loginRequest = {

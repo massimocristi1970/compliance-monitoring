@@ -191,26 +191,32 @@ const ComplianceDashboard = () => {
     }
   };
 
+  const getOneDriveBasePath = (account) => {
+    if (!account) return null;
+    const users = oneDriveConfig.authorisedUsers || {};
+    const email = account.username.toLowerCase();
+    const match = Object.entries(users).find(
+      ([key]) => key.toLowerCase() === email
+    );
+    return match ? match[1] : null;
+  };
+
   const loginMicrosoft = async () => {
     if (!msalReady) {
       alert("Microsoft login is still initialising. Try again in a moment.");
       return;
     }
     try {
-      const loginHint = oneDriveConfig.ownerEmail || undefined;
-      const loginResponse = await msalInstance.loginPopup({
-        ...loginRequest,
-        loginHint,
-      });
+      const loginResponse = await msalInstance.loginPopup(loginRequest);
+      const basePath = getOneDriveBasePath(loginResponse.account);
 
-      if (
-        oneDriveConfig.ownerEmail &&
-        loginResponse.account.username.toLowerCase() !==
-          oneDriveConfig.ownerEmail.toLowerCase()
-      ) {
+      if (!basePath) {
+        const authorised = Object.keys(
+          oneDriveConfig.authorisedUsers || {}
+        ).join(", ");
         await msalInstance.logoutPopup({ account: loginResponse.account });
         alert(
-          `Uploads are configured to go to ${oneDriveConfig.ownerEmail}'s OneDrive.\n\nPlease sign in with ${oneDriveConfig.ownerEmail} instead.`
+          `Your account (${loginResponse.account.username}) is not configured for uploads.\n\nAuthorised accounts: ${authorised}\n\nAsk your admin to add your account and OneDrive path to the configuration.`
         );
         return;
       }
@@ -671,7 +677,8 @@ const ComplianceDashboard = () => {
           continue; // Skip this file
         }
 
-        const folderPath = `Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data/${selectedYear}/${months[
+        const basePath = getOneDriveBasePath(msalInstance.getActiveAccount());
+        const folderPath = `${basePath}/${selectedYear}/${months[
           selectedMonth - 1
         ].toLowerCase()}/check-${checkRef}`;
 
@@ -1016,7 +1023,8 @@ const ComplianceDashboard = () => {
         throw new Error("Could not get Microsoft auth token.");
       }
 
-      const folderPath = `Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data/${year}/${months[
+      const basePath = getOneDriveBasePath(msalInstance.getActiveAccount());
+      const folderPath = `${basePath}/${year}/${months[
         month - 1
       ].toLowerCase()}`;
       const fileName = `compliance-report-${year}-${month
@@ -1881,14 +1889,11 @@ const ComplianceDashboard = () => {
                   <>
                     <div className="mb-4">
                       <p className="text-sm text-gray-600 mb-3">
-                        Files will be uploaded to{" "}
-                        {oneDriveConfig.ownerEmail
-                          ? `${oneDriveConfig.ownerEmail}'s OneDrive`
-                          : `OneDrive by ${microsoftAccount.name}`}
-                        :
+                        Files will be uploaded to OneDrive by{" "}
+                        {microsoftAccount.name}:
                       </p>
                       <code className="text-xs bg-gray-100 p-2 rounded block">
-                        Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data/{selectedYear}/
+                        {getOneDriveBasePath(microsoftAccount)}/{selectedYear}/
                         {months[selectedMonth - 1].toLowerCase()}/check-
                         {selectedCheck.checkRef}/
                       </code>
