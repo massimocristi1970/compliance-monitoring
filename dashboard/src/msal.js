@@ -17,8 +17,22 @@ const msalConfig = {
   },
 };
 
+export const oneDriveConfig = {
+  // Set this to your Microsoft account email/UPN to force ALL uploads to your
+  // OneDrive regardless of which user is signed in.  Leave empty ("") to use
+  // the signed-in user's own OneDrive (original behaviour).
+  //
+  // When set, the logged-in user must have shared-write access to the target
+  // folder on this account's OneDrive, and the MSAL scope is automatically
+  // widened to Files.ReadWrite.All.
+  ownerEmail: "massimocristi1970@gmail.com",
+};
+
 export const loginRequest = {
-  scopes: ["User.Read", "Files.ReadWrite"],
+  scopes: [
+    "User.Read",
+    oneDriveConfig.ownerEmail ? "Files.ReadWrite.All" : "Files.ReadWrite",
+  ],
 };
 
 export const msalInstance = new PublicClientApplication(msalConfig);

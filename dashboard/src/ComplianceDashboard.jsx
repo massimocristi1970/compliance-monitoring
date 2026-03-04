@@ -41,7 +41,7 @@ import {
 import { GithubAuthProvider } from "firebase/auth";
 import AdminPanel from "./AdminPanel";
 // MSAL (Microsoft) imports
-import { msalInstance, msalInit, loginRequest } from "./msal";
+import { msalInstance, msalInit, loginRequest, oneDriveConfig } from "./msal";
 
 const ComplianceDashboard = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -658,7 +658,11 @@ const ComplianceDashboard = () => {
           selectedMonth - 1
         ].toLowerCase()}/check-${checkRef}`;
 
-        const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${folderPath}/${file.name}:/content`;
+        const driveBase = oneDriveConfig.ownerEmail
+          ? `https://graph.microsoft.com/v1.0/users/${oneDriveConfig.ownerEmail}/drive`
+          : "https://graph.microsoft.com/v1.0/me/drive";
+
+        const graphUrl = `${driveBase}/root:/${folderPath}/${file.name}:/content`;
 
         const response = await fetch(graphUrl, {
           method: "PUT",
@@ -1783,8 +1787,11 @@ const ComplianceDashboard = () => {
                   <>
                     <div className="mb-4">
                       <p className="text-sm text-gray-600 mb-3">
-                        Files will be uploaded to OneDrive by{" "}
-                        {microsoftAccount.name}:
+                        Files will be uploaded to{" "}
+                        {oneDriveConfig.ownerEmail
+                          ? `${oneDriveConfig.ownerEmail}'s OneDrive`
+                          : `OneDrive by ${microsoftAccount.name}`}
+                        :
                       </p>
                       <code className="text-xs bg-gray-100 p-2 rounded block">
                         data/{selectedYear}/
