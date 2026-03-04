@@ -29,10 +29,7 @@ export const oneDriveConfig = {
 };
 
 export const loginRequest = {
-  scopes: [
-    "User.Read",
-    oneDriveConfig.ownerEmail ? "Files.ReadWrite.All" : "Files.ReadWrite",
-  ],
+  scopes: ["User.Read", "Files.ReadWrite"],
 };
 
 export const msalInstance = new PublicClientApplication(msalConfig);
