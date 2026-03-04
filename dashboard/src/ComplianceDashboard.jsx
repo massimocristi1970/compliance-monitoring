@@ -197,8 +197,25 @@ const ComplianceDashboard = () => {
       return;
     }
     try {
-      const loginResponse = await msalInstance.loginPopup(loginRequest);
-      msalInstance.setActiveAccount(loginResponse.account); // ✅ required
+      const loginHint = oneDriveConfig.ownerEmail || undefined;
+      const loginResponse = await msalInstance.loginPopup({
+        ...loginRequest,
+        loginHint,
+      });
+
+      if (
+        oneDriveConfig.ownerEmail &&
+        loginResponse.account.username.toLowerCase() !==
+          oneDriveConfig.ownerEmail.toLowerCase()
+      ) {
+        await msalInstance.logoutPopup({ account: loginResponse.account });
+        alert(
+          `Uploads are configured to go to ${oneDriveConfig.ownerEmail}'s OneDrive.\n\nPlease sign in with ${oneDriveConfig.ownerEmail} instead.`
+        );
+        return;
+      }
+
+      msalInstance.setActiveAccount(loginResponse.account);
       setMicrosoftAccount(loginResponse.account);
       setIsMicrosoftAuth(true);
     } catch (err) {
@@ -658,11 +675,7 @@ const ComplianceDashboard = () => {
           selectedMonth - 1
         ].toLowerCase()}/check-${checkRef}`;
 
-        const driveBase = oneDriveConfig.ownerEmail
-          ? `https://graph.microsoft.com/v1.0/users/${oneDriveConfig.ownerEmail}/drive`
-          : "https://graph.microsoft.com/v1.0/me/drive";
-
-        const graphUrl = `${driveBase}/root:/${folderPath}/${file.name}:/content`;
+        const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${folderPath}/${file.name}:/content`;
 
         const response = await fetch(graphUrl, {
           method: "PUT",
@@ -1010,11 +1023,7 @@ const ComplianceDashboard = () => {
         .toString()
         .padStart(2, "0")}.docx`;
 
-      const driveBase = oneDriveConfig.ownerEmail
-        ? `https://graph.microsoft.com/v1.0/users/${oneDriveConfig.ownerEmail}/drive`
-        : "https://graph.microsoft.com/v1.0/me/drive";
-
-      const graphUrl = `${driveBase}/root:/${folderPath}/${fileName}:/content`;
+      const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${folderPath}/${fileName}:/content`;
 
       const response = await fetch(graphUrl, {
         method: "PUT",

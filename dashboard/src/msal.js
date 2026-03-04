@@ -19,12 +19,12 @@ const msalConfig = {
 
 export const oneDriveConfig = {
   // Set this to your Microsoft account email/UPN to force ALL uploads to your
-  // OneDrive regardless of which user is signed in.  Leave empty ("") to use
-  // the signed-in user's own OneDrive (original behaviour).
-  //
-  // When set, the logged-in user must have shared-write access to the target
-  // folder on this account's OneDrive, and the MSAL scope is automatically
-  // widened to Files.ReadWrite.All.
+  // OneDrive.  When set, the app enforces that only this account can log in
+  // via Microsoft — other users are prompted to sign in as this account.
+  // This guarantees every upload lands in the owner's OneDrive using the
+  // standard /me/drive/ endpoint (no admin consent required).
+  // Leave empty ("") to allow any Microsoft account (uploads go to their own
+  // OneDrive).
   ownerEmail: "massimo@ticktockloans.com",
 };
 
