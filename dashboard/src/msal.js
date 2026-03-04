@@ -25,7 +25,7 @@ export const oneDriveConfig = {
   // When set, the logged-in user must have shared-write access to the target
   // folder on this account's OneDrive, and the MSAL scope is automatically
   // widened to Files.ReadWrite.All.
-  ownerEmail: "massimocristi1970@gmail.com",
+  ownerEmail: "massimo@ticktockloans.com",
 };
 
 export const loginRequest = {
