@@ -586,13 +586,13 @@ useEffect(() => {
       return;
     }
 
-    if (!window.confirm('This will generate checks for ALL 12 months of 2025 from your templates. Continue?')) {
+    if (!window.confirm(`This will generate checks for ALL 12 months of ${selectedYear} from your templates. Continue?`)) {
       return;
     }
 
     let allNewChecks = [];
     let checkRef = Math.max(...complianceChecks.map(c => c.checkRef || 0)) + 1;
-    const year = 2025;
+    const year = selectedYear;
 
     // Loop through all 12 months
     for (let monthIndex = 1; monthIndex <= 12; monthIndex++) {
@@ -672,9 +672,9 @@ useEffect(() => {
 
     if (allNewChecks.length > 0) {
       setComplianceChecks([...complianceChecks, ...allNewChecks]);
-      alert(`Generated ${allNewChecks.length} compliance checks across all months of 2025.\n\nRemember to click "Save All Changes" to persist these checks.`);
+      alert(`Generated ${allNewChecks.length} compliance checks across all months of ${selectedYear}.\n\nRemember to click "Save All Changes" to persist these checks.`);
     } else {
-      alert('All template-based checks for 2025 already exist. No new checks created.');
+      alert(`All template-based checks for ${selectedYear} already exist. No new checks created.`);
     }
   };
 
@@ -1555,7 +1555,7 @@ return (
                   <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
                     <h4 className="font-medium text-indigo-800 mb-2">Option 1: Generate for Current Period</h4>
                     <p className="text-sm text-indigo-600 mb-3">
-                      Generates a random number of checks for **{months[selectedMonth - 1]} {selectedYear}** using existing assignees and business areas.
+                      Generates checks for <strong>{months[selectedMonth - 1]} {selectedYear}</strong> from your templates based on their scheduled frequencies. Duplicates are skipped automatically.
                     </p>
                     <button
                       onClick={generateChecksForSpecificMonth}
@@ -1569,7 +1569,7 @@ return (
                   <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
 					<h4 className="font-medium text-purple-800 mb-2">Option 2: Generate Full Year from Templates</h4>
 					<p className="text-sm text-purple-600 mb-3">
-						Creates checks for all 12 months of 2025 from your templates based on their frequencies.
+						Creates checks for all 12 months of <strong>{selectedYear}</strong> from your templates based on their scheduled frequencies. Duplicates are skipped automatically.
 					</p>
 					<button
 						onClick={generateBulkChecks}
