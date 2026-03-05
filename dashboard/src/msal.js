@@ -29,7 +29,7 @@ export const oneDriveConfig = {
   authorisedUsers: {
     "massimo@ticktockloans.com":
       "Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data",
-    "zoe@ticktockloans.com": "data",
+    "zoe@ticktockloans.com": "Compliance Monitoring/data",
   },
 };
 
