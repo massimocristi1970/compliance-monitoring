@@ -18,14 +18,19 @@ const msalConfig = {
 };
 
 export const oneDriveConfig = {
-  // Set this to your Microsoft account email/UPN to force ALL uploads to your
-  // OneDrive regardless of which user is signed in.  Leave empty ("") to use
-  // the signed-in user's own OneDrive (original behaviour).
+  // Maps each authorised Microsoft account to the OneDrive folder path where
+  // the compliance data folder lives *in that user's own drive*.
+  // Each user logs in with their own account and uploads via /me/drive/,
+  // so no admin consent or Files.ReadWrite.All scope is needed.
   //
-  // When set, the logged-in user must have shared-write access to the target
-  // folder on this account's OneDrive, and the MSAL scope is automatically
-  // widened to Files.ReadWrite.All.
-  ownerEmail: "massimo@ticktockloans.com",
+  // To add a new team member: share the compliance folder with them in
+  // OneDrive, ask them what path it appears at in their drive, and add
+  // an entry here.
+  authorisedUsers: {
+    "massimo@ticktockloans.com":
+      "Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data",
+    "zoe@ticktockloans.com": "Compliance Monitoring/data",
+  },
 };
 
 export const loginRequest = {
