@@ -29,9 +29,7 @@ export const oneDriveConfig = {
   authorisedUsers: {
     "massimo@ticktockloans.com":
       "Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data",
-    // TODO: Add your team member's email and their path to the shared folder
-    // "colleague@ticktockloans.com":
-    //   "Shared/Tick Tock Loans/Compliance/SLPL Compliance Monitoring/data",
+    "zoe@ticktockloans.com": "data",
   },
 };
 
