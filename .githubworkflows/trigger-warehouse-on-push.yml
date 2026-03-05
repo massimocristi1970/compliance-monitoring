@@ -1,0 +1,30 @@
+# Copy this file into each SOURCE repo (call-performance-dashboard, financial-reports-dashboard,
+# compliance-monitoring) as .github/workflows/trigger-warehouse-on-push.yml to trigger the
+# board-mi-warehouse ingest pipeline whenever that repo is updated.
+#
+# Prerequisites (in the SOURCE repo):
+# 1. Add secret WAREHOUSE_REPO_TOKEN (PAT with repo scope, can trigger workflows in board-mi-warehouse).
+# 2. Add variable WAREHOUSE_REPO = YOUR_ORG/board-mi-warehouse (or set WAREHOUSE_REPO in the env below).
+
+name: Trigger warehouse ingest
+
+on:
+  push:
+    branches: [main, master]
+
+jobs:
+  trigger-warehouse:
+    runs-on: ubuntu-latest
+    env:
+      # Set this or add repo variable WAREHOUSE_REPO (e.g. my-org/board-mi-warehouse)
+      WAREHOUSE_REPO: ${{ vars.WAREHOUSE_REPO }}
+    steps:
+      - name: Trigger board-mi-warehouse ingest
+        run: |
+          REPO="${WAREHOUSE_REPO:-YOUR_ORG/board-mi-warehouse}"
+          curl -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.WAREHOUSE_REPO_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPO}/dispatches" \
+            -d '{"event_type":"source-update","client_payload":{"source":"${{ github.repository }}","ref":"${{ github.ref_name }}"}}'
